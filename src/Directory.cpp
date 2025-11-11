@@ -91,3 +91,23 @@ size_t Directory::getTotalSize() const {
     
     return total;
 }
+
+int Directory::getTotalFiles() const {
+    int total = static_cast<int>(files.size());
+    for (const auto& dir : subdirectories) {
+        total += dir->getTotalFiles();
+    }
+    return total;
+}
+
+int Directory::getTotalDirectories() const {
+    int total = 1;  // Count the current directory itself
+    for (const auto& dir : subdirectories) {
+        total += dir->getTotalDirectories();
+    }
+    return total;
+}
+
+int Directory::getElementCount() const {
+    return static_cast<int>(subdirectories.size() + files.size());
+}

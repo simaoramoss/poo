@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include "Directory.hpp"
+#include "SistemaFicheiros.hpp"
 
 void printCommands() {
     std::cout << "\nComandos disponíveis:\n";
@@ -21,7 +22,7 @@ int main() {
     Directory* currentDir = root.get();
     std::string command;
     
-    std::cout << "Bem-vindo ao Gestor de Diretórias!\n";
+    std::cout << "Bem-vindo ao Gestor de Diretórias!" << std::endl;
     printCommands();
     
     while (true) {
