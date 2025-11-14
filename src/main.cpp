@@ -5,14 +5,14 @@
 
 void printCommands() {
     std::cout << "\nComandos disponíveis:\n";
-    std::cout << "1. mkdir <nome> - Criar diretória\n";
-    std::cout << "2. touch <nome> <tamanho> - Criar ficheiro\n";
-    std::cout << "3. cd <nome> - Mudar para diretória\n";
-    std::cout << "4. cd .. - Voltar à diretória pai\n";
-    std::cout << "5. ls - Listar conteúdo da diretória atual\n";
+    std::cout << "1. criar <nome> - Criar diretoria\n";
+    std::cout << "2. criar ficheiro <nome> <tamanho> - Criar ficheiro\n";
+    std::cout << "3. cd <nome> - Mudar para diretoria\n";
+    std::cout << "4. cd .. - Voltar à diretoria pai\n";
+    std::cout << "5. ls - Listar conteúdo da diretoria atual\n";
     std::cout << "6. rm <nome> - Remover ficheiro\n";
-    std::cout << "7. rmdir <nome> - Remover diretória\n";
-    std::cout << "8. size - Mostrar tamanho total da diretória atual\n";
+    std::cout << "7. rmdir <nome> - Remover diretoria\n";
+    std::cout << "8. size - Mostrar tamanho total da diretoria atual\n";
     std::cout << "9. help - Mostrar comandos\n";
     std::cout << "10. exit - Sair\n";
 }
