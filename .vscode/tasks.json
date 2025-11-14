@@ -7,9 +7,13 @@
             "command": "g++",
             "args": [
                 "-g",
-                "${file}",
                 "-o",
-                "${fileDirname}\\${fileBasenameNoExtension}.exe"
+                "${workspaceFolder}\\gestor_ficheiros.exe",
+                "${workspaceFolder}\\src\\main.cpp",
+                "${workspaceFolder}\\src\\Directory.cpp",
+                "${workspaceFolder}\\src\\File.cpp",
+                "${workspaceFolder}\\src\\SistemaFicheiros.cpp",
+                "-std=c++17"
             ],
             "group": {
                 "kind": "build",
@@ -20,7 +24,7 @@
         {
             "label": "run",
             "type": "shell",
-            "command": "${fileDirname}\\${fileBasenameNoExtension}.exe",
+            "command": "${workspaceFolder}\\gestor_ficheiros.exe",
             "group": {
                 "kind": "test",
                 "isDefault": true

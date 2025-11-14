@@ -24,20 +24,46 @@ void SistemaFicheiros::clearSystem() {
 bool SistemaFicheiros::Load(const std::string& path) {
     try {
         if (!fs::exists(path)) return false;
-        
+
         clearSystem();
         root = std::make_shared<Directory>(fs::path(path).filename().string());
-        
-        for (const auto& entry : fs::recursive_directory_iterator(path)) {
+
+        // Lista de diretórios e ficheiros a ignorar
+        static const std::vector<std::string> ignoreDirs = { ".git", ".vscode", "bin", "obj", "build" };
+        static const std::vector<std::string> ignoreFiles = { ".gitignore", ".DS_Store" };
+
+        // Iterador recursivo
+        for (auto it = fs::recursive_directory_iterator(path, fs::directory_options::skip_permission_denied);
+             it != fs::recursive_directory_iterator(); ++it)
+        {
+            const auto& entry = *it;
             std::string currentPath = entry.path().string();
+            std::string fileName = entry.path().filename().string();
+
+            // Ignorar diretórios inteiros
+            if (entry.is_directory() &&
+                std::find(ignoreDirs.begin(), ignoreDirs.end(), fileName) != ignoreDirs.end())
+            {
+                it.disable_recursion_pending(); // não entra na pasta
+                continue;
+            }
+
+            // Ignorar ficheiros indesejados
+            if (!entry.is_directory() &&
+                (entry.path().extension() == ".exe" ||
+                 std::find(ignoreFiles.begin(), ignoreFiles.end(), fileName) != ignoreFiles.end()))
+            {
+                continue;
+            }
+
             std::string relativePath = currentPath.substr(path.length() + 1);
-            
+
             if (entry.is_directory()) {
-                // Create directory structure
+                // Cria estrutura de diretórios
                 auto dir = root;
                 std::istringstream pathStream(relativePath);
                 std::string segment;
-                
+
                 while (std::getline(pathStream, segment, '\\')) {
                     auto subdir = dir->findSubdirectory(segment);
                     if (!subdir) {
@@ -48,31 +74,41 @@ bool SistemaFicheiros::Load(const std::string& path) {
                     }
                 }
             } else {
-                // Add file to appropriate directory
-                auto dir = root;
+                // Adiciona ficheiro à diretoria correta
+                auto dir = root.get();  // Começa na raiz
                 fs::path filePath(relativePath);
-                std::string fileName = filePath.filename().string();
                 size_t fileSize = fs::file_size(entry.path());
-                
+
                 if (filePath.has_parent_path()) {
                     std::string dirPath = filePath.parent_path().string();
                     std::istringstream pathStream(dirPath);
                     std::string segment;
-                    
+
                     while (std::getline(pathStream, segment, '\\')) {
-                        dir = dir->findSubdirectory(segment);
+                        auto subdir = dir->findSubdirectory(segment);
+                        if (subdir) {
+                            dir = subdir.get();
+                        } else {
+                            dir = nullptr;
+                            break; // diretório não encontrado, ignora ficheiro
+                        }
                     }
                 }
-                
-                dir->addFile(fileName, fileSize);
+
+                if (dir != nullptr) {
+                    dir->addFile(fileName, fileSize);
+                }
             }
         }
-        
+
         return true;
     } catch (...) {
         return false;
     }
 }
+
+
+
 
 int SistemaFicheiros::ContarFicheiros() {
     if (!root) return 0;
@@ -119,8 +155,8 @@ std::string* SistemaFicheiros::DirectoriaMaisElementos() {
 std::string* SistemaFicheiros::DirectoriaMenosElementos() {
     if (!root) return nullptr;
     
-    std::shared_ptr<Directory> minDir = nullptr;
-    int minElements = INT_MAX;
+    std::shared_ptr<Directory> minDir = root;  // Inicializa com root em vez de nullptr
+    int minElements = root->getElementCount();
     
     std::queue<std::shared_ptr<Directory>> queue;
     queue.push(root);
@@ -139,6 +175,8 @@ std::string* SistemaFicheiros::DirectoriaMenosElementos() {
             queue.push(subdir);
         }
     }
+    
+    if (!minDir) return nullptr;  // Verificação de segurança
     return new std::string(getAbsolutePath(minDir.get()));
 }
 
@@ -154,6 +192,43 @@ std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     }
     return path;
 }
+
+std::string* SistemaFicheiros::FicheiroMaior() {
+    if (!root) return nullptr;
+
+    std::string maxPath;
+    size_t maxSize = 0;
+    bool found = false;
+
+    std::queue<std::pair<std::shared_ptr<Directory>, std::string>> queue;
+    queue.push({root, root->getName()});
+
+    while (!queue.empty()) {
+        auto [current, currentPath] = queue.front();
+        queue.pop();
+
+        // Verifica todos os ficheiros desta diretoria
+        for (const auto& file : current->getFiles()) {
+            if (!found || file->getSize() > maxSize) {
+                found = true;
+                maxSize = file->getSize();
+                maxPath = currentPath + "\\" + file->getName();
+            }
+        }
+
+        // Percorrer subdiretorias
+        for (const auto& subdir : current->getSubdirectories()) {
+            queue.push({subdir, currentPath + "\\" + subdir->getName()});
+        }
+    }
+
+    if (!found) return nullptr;  // Não há ficheiros
+
+    // Construir string final
+    std::string result = maxPath + " (" + std::to_string(maxSize) + " bytes)";
+    return new std::string(result);
+}
+
 
 void SistemaFicheiros::getAllDirectories(std::shared_ptr<Directory> dir, 
                                        std::list<std::shared_ptr<Directory>>& dirs) const {
