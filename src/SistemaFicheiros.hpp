@@ -4,6 +4,7 @@
 #include <string>
 #include <list>
 #include <memory>
+#include <optional>
 #include "Directory.hpp"
 
 class SistemaFicheiros {
@@ -28,7 +29,7 @@ public:
     int Memoria();
     std::string* DirectoriaMaisElementos();
     std::string* DirectoriaMenosElementos();
-    std::string* FicheiroMaior();
+    std::optional<std::string> FicheiroMaior() const;
     std::string* DirectoriaMaisEspaco();
     std::string* Search(const std::string& s, int Tipo);
     bool RemoverAll(const std::string& s, const std::string& tipo);
@@ -43,6 +44,8 @@ public:
     void RenomearFicheiros(const std::string& fich_old, const std::string& fich_new);
     bool FicheiroDuplicados();
     bool CopyBatch(const std::string& padrao, const std::string& DirOrigem, const std::string& DirDestino);
+    // Allow setting the in-memory root (so main can export the current tree)
+    void SetRoot(std::shared_ptr<Directory> r);
 };
 
 #endif

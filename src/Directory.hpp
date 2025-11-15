@@ -20,8 +20,8 @@ public:
     // Getters
     std::string getName() const;
     void setName(const std::string& newName);
-    std::vector<std::shared_ptr<Directory>> getSubdirectories() const;
-    std::vector<std::shared_ptr<File>> getFiles() const;
+    const std::vector<std::shared_ptr<Directory>>& getSubdirectories() const;
+    const std::vector<std::shared_ptr<File>>& getFiles() const;
     Directory* getParent() const;
     
     // Basic Operations
@@ -29,8 +29,8 @@ public:
     void addFile(const std::string& name, size_t size);
     void removeSubdirectory(const std::string& name);
     void removeFile(const std::string& name);
-    std::shared_ptr<Directory> findSubdirectory(const std::string& name);
-    std::shared_ptr<File> findFile(const std::string& name);
+    std::shared_ptr<Directory> findSubdirectory(const std::string& name) const;
+    std::shared_ptr<File> findFile(const std::string& name) const;
     void listContents() const;
     
     // Advanced Operations
@@ -39,6 +39,8 @@ public:
     int getTotalDirectories() const;
     int getElementCount() const; // conta arquivos + diretorios (sem contar subdiretorios)
     std::shared_ptr<File> findLargestFile() const;
+    // Retorna o caminho (relativo a esta diretoria) e tamanho do maior ficheiro
+    std::pair<std::string, size_t> findLargestFileWithPath(const std::string& currentPath = "") const;
     void findAllDirectories(const std::string& name, std::list<std::string>& paths, const std::string& currentPath = "");
     void findAllFiles(const std::string& name, std::list<std::string>& paths, const std::string& currentPath = "");
     bool containsFile(const std::string& name) const;

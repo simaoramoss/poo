@@ -9,11 +9,12 @@ std::string Directory::getName() const {
     return name;
 }
 
-std::vector<std::shared_ptr<Directory>> Directory::getSubdirectories() const {
+
+const std::vector<std::shared_ptr<Directory>>& Directory::getSubdirectories() const {
     return subdirectories;
 }
 
-std::vector<std::shared_ptr<File>> Directory::getFiles() const {
+const std::vector<std::shared_ptr<File>>& Directory::getFiles() const {
     return files;
 }
 
@@ -49,14 +50,14 @@ void Directory::removeFile(const std::string& name) {
     }
 }
 
-std::shared_ptr<Directory> Directory::findSubdirectory(const std::string& name) {
+std::shared_ptr<Directory> Directory::findSubdirectory(const std::string& name) const {
     auto it = std::find_if(subdirectories.begin(), subdirectories.end(),
         [&name](const auto& dir) { return dir->getName() == name; });
     
     return (it != subdirectories.end()) ? *it : nullptr;
 }
 
-std::shared_ptr<File> Directory::findFile(const std::string& name) {
+std::shared_ptr<File> Directory::findFile(const std::string& name) const {
     auto it = std::find_if(files.begin(), files.end(),
         [&name](const auto& file) { return file->getName() == name; });
     
@@ -110,4 +111,35 @@ int Directory::getTotalDirectories() const {
 
 int Directory::getElementCount() const {
     return static_cast<int>(subdirectories.size() + files.size());
+}
+
+std::pair<std::string, size_t> Directory::findLargestFileWithPath(const std::string& currentPath) const {
+    std::string bestPath;
+    size_t bestSize = 0;
+    bool found = false;
+
+    // Check files in this directory
+    for (const auto& file : files) {
+        size_t s = file->getSize();
+        std::string p = currentPath.empty() ? file->getName() : (currentPath + "\\" + file->getName());
+        if (!found || s > bestSize) {
+            found = true;
+            bestSize = s;
+            bestPath = p;
+        }
+    }
+
+    // Recurse into subdirectories
+    for (const auto& dir : subdirectories) {
+        std::string subPath = currentPath.empty() ? dir->getName() : (currentPath + "\\" + dir->getName());
+        auto [childPath, childSize] = dir->findLargestFileWithPath(subPath);
+        if (!childPath.empty() && (!found || childSize > bestSize)) {
+            found = true;
+            bestSize = childSize;
+            bestPath = childPath;
+        }
+    }
+
+    if (!found) return {"", 0};
+    return {bestPath, bestSize};
 }

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <algorithm>
 #include <queue>
+#include <functional>
 #include <sstream>
 #include <iostream>
 #include <map>
@@ -180,6 +181,30 @@ std::string* SistemaFicheiros::DirectoriaMenosElementos() {
     return new std::string(getAbsolutePath(minDir.get()));
 }
 
+std::string* SistemaFicheiros::DirectoriaMaisEspaco() {
+    if (!root) return nullptr;
+
+    std::shared_ptr<Directory> bestDir = root;
+    size_t bestSize = root->getTotalSize();
+
+    std::queue<std::shared_ptr<Directory>> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        auto current = q.front(); q.pop();
+        size_t curSize = current->getTotalSize();
+        if (curSize > bestSize) {
+            bestSize = curSize;
+            bestDir = current;
+        }
+        for (const auto& subdir : current->getSubdirectories()) {
+            q.push(subdir);
+        }
+    }
+
+    return new std::string(getAbsolutePath(bestDir.get()) + " (" + std::to_string(bestSize) + " bytes)");
+}
+
 
 std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     std::string path;
@@ -193,8 +218,8 @@ std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     return path;
 }
 
-std::string* SistemaFicheiros::FicheiroMaior() {
-    if (!root) return nullptr;
+std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
+    if (!root) return std::nullopt;
 
     std::string maxPath;
     size_t maxSize = 0;
@@ -222,11 +247,11 @@ std::string* SistemaFicheiros::FicheiroMaior() {
         }
     }
 
-    if (!found) return nullptr;  // Não há ficheiros
+    if (!found) return std::nullopt;  // Não há ficheiros
 
     // Construir string final
     std::string result = maxPath + " (" + std::to_string(maxSize) + " bytes)";
-    return new std::string(result);
+    return result;
 }
 
 
@@ -250,6 +275,126 @@ void SistemaFicheiros::getAllFiles(std::shared_ptr<Directory> dir,
     
     for (const auto& subdir : dir->getSubdirectories()) {
         getAllFiles(subdir, files);
+    }
+}
+
+bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo) {
+    if (!root) return false;
+
+    bool removed = false;
+
+    std::function<void(std::shared_ptr<Directory>)> dfs = [&](std::shared_ptr<Directory> dir) {
+        if (!dir) return;
+
+        // Remove files with name == s in this directory (if tipo != "DIR")
+        if (tipo != "DIR") {
+            // remove repeatedly in case multiple files with same name exist in same dir
+            while (dir->findFile(s)) {
+                dir->removeFile(s);
+                removed = true;
+            }
+        }
+
+        // Iterate over a copy of subdirectories to allow mutating the container
+        auto subs = dir->getSubdirectories();
+        for (const auto& sub : subs) {
+            if (tipo == "DIR" && sub->getName() == s) {
+                // remove this subdirectory from parent
+                dir->removeSubdirectory(s);
+                removed = true;
+            } else {
+                // recurse into subdirectory
+                dfs(sub);
+            }
+        }
+    };
+
+    dfs(root);
+    return removed;
+}
+
+void SistemaFicheiros::SetRoot(std::shared_ptr<Directory> r) {
+    root = r;
+}
+
+void SistemaFicheiros::Escrever_XML(const std::string &s) {
+    if (!root) return;
+
+    auto escapeXml = [](const std::string &in) {
+        std::string out;
+        out.reserve(in.size());
+        for (char c : in) {
+            switch (c) {
+                case '&': out += "&amp;"; break;
+                case '<': out += "&lt;"; break;
+                case '>': out += "&gt;"; break;
+                case '"': out += "&quot;"; break;
+                case '\'': out += "&apos;"; break;
+                default: out += c; break;
+            }
+        }
+        return out;
+    };
+
+    std::ofstream ofs(s);
+    if (!ofs.is_open()) return;
+
+    ofs << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    std::function<void(const std::shared_ptr<Directory>&, int)> writeDir;
+    writeDir = [&](const std::shared_ptr<Directory> &dir, int indent) {
+        std::string ind(indent, ' ');
+        ofs << ind << "<Directory name=\"" << escapeXml(dir->getName()) << "\">\n";
+
+        // files
+        for (const auto &f : dir->getFiles()) {
+            ofs << ind << "  <File name=\"" << escapeXml(f->getName()) << "\" size=\"" << f->getSize() << "\" date=\"" << escapeXml(f->getDate()) << "\" />\n";
+        }
+
+        // subdirectories
+        for (const auto &sub : dir->getSubdirectories()) {
+            writeDir(sub, indent + 2);
+        }
+
+        ofs << ind << "</Directory>\n";
+    };
+
+    writeDir(root, 0);
+    ofs.close();
+}
+
+std::string* SistemaFicheiros::Search(const std::string &s, int Tipo) {
+    if (!root) return nullptr;
+
+    // Tipo: 1 = diretoria, 0 = ficheiro
+    if (Tipo == 1) {
+        // BFS for directory
+        std::queue<std::shared_ptr<Directory>> q;
+        q.push(root);
+        while (!q.empty()) {
+            auto cur = q.front(); q.pop();
+            if (cur->getName() == s) {
+                return new std::string(getAbsolutePath(cur.get()));
+            }
+            for (const auto &sub : cur->getSubdirectories()) q.push(sub);
+        }
+        return nullptr;
+    } else {
+        // search for file
+        std::queue<std::pair<std::shared_ptr<Directory>, std::string>> q;
+        q.push({root, root->getName()});
+        while (!q.empty()) {
+            auto [cur, curPath] = q.front(); q.pop();
+            for (const auto &file : cur->getFiles()) {
+                if (file->getName() == s) {
+                    std::string full = curPath + "\\" + file->getName();
+                    return new std::string(full);
+                }
+            }
+            for (const auto &sub : cur->getSubdirectories()) {
+                q.push({sub, curPath + "\\" + sub->getName()});
+            }
+        }
+        return nullptr;
     }
 }
 
