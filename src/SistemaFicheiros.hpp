@@ -1,51 +1,46 @@
-#ifndef SISTEMA_FICHEIROS_HPP
-#define SISTEMA_FICHEIROS_HPP
-
-#include <string>
-#include <list>
+#pragma once
 #include <memory>
+#include <string>
+#include <vector>
+#include <list>
 #include <optional>
 #include "Directory.hpp"
+#include "File.hpp"
 
 class SistemaFicheiros {
 private:
     std::shared_ptr<Directory> root;
-    
-    // Métodos auxiliares privados
-    void clearSystem();
-    std::shared_ptr<Directory> findDirectory(const std::string& path);
-    std::string getAbsolutePath(Directory* dir) const;
-    void getAllDirectories(std::shared_ptr<Directory> dir, std::list<std::shared_ptr<Directory>>& dirs) const;
-    void getAllFiles(std::shared_ptr<Directory> dir, std::list<std::shared_ptr<File>>& files) const;
 
 public:
     SistemaFicheiros();
     ~SistemaFicheiros();
 
-    // Métodos principais conforme especificação
-    bool Load(const std::string& path);
-    int ContarFicheiros();
-    int ContarDirectorias();
-    int Memoria();
-    std::string* DirectoriaMaisElementos();
-    std::string* DirectoriaMenosElementos();
-    std::optional<std::string> FicheiroMaior() const;
-    std::string* DirectoriaMaisEspaco();
-    std::string* Search(const std::string& s, int Tipo);
-    bool RemoverAll(const std::string& s, const std::string& tipo);
-    void Escrever_XML(const std::string& s);
-    bool Ler_XML(const std::string& s);
-    bool MoveFicheiro(const std::string& Fich, const std::string& DirNova);
-    bool MoverDirectoria(const std::string& DirOld, const std::string& DirNew);
-    std::string* DataFicheiro(const std::string& ficheiro);
-    void Tree(const std::string* fich = nullptr);
-    void PesquisarAllDirectorias(std::list<std::string>& lres, const std::string& dir);
-    void PesquisarAllFicheiros(std::list<std::string>& lres, const std::string& file);
-    void RenomearFicheiros(const std::string& fich_old, const std::string& fich_new);
-    bool FicheiroDuplicados();
-    bool CopyBatch(const std::string& padrao, const std::string& DirOrigem, const std::string& DirDestino);
-    // Allow setting the in-memory root (so main can export the current tree)
-    void SetRoot(std::shared_ptr<Directory> r);
-};
+    void clearSystem();
 
-#endif
+    bool Load(const std::string& pathStr);
+
+    int ContarFicheiros() const;
+    int ContarDirectorias() const;
+    int Memoria() const;
+
+    std::optional<std::string> DirectoriaMaisElementos() const;
+    std::optional<std::string> DirectoriaMenosElementos() const;
+    std::optional<std::string> DirectoriaMaisEspaco() const;
+    std::optional<std::string> FicheiroMaior() const;
+
+    void getAllDirectories(std::shared_ptr<Directory> dir, std::list<std::shared_ptr<Directory>>& dirs) const;
+    void getAllFiles(std::shared_ptr<Directory> dir, std::list<std::shared_ptr<File>>& files) const;
+
+    bool RemoverAll(const std::string &s, const std::string &tipo);
+
+    void SetRoot(std::shared_ptr<Directory> r);
+    std::shared_ptr<Directory> GetRoot() const;
+
+    void Escrever_XML(const std::string &s);
+    bool Ler_XML(const std::string &s);
+
+    std::optional<std::string> Search(const std::string &s, int Tipo) const;
+
+private:
+    std::string getAbsolutePath(Directory* dir) const;
+};

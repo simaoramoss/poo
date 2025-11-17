@@ -24,23 +24,25 @@ void printCommands() {
     std::cout << "12. maisespaco - Mostrar diretoria que ocupa mais espaço (a partir da raiz do sistema)\n";
     std::cout << "13. removerall <DIR|FILE> - Remover todas as diretorias ou todos os ficheiros\n";
     std::cout << "14. exportarxml <ficheiro> - Exportar o sistema em memoria para XML (default: sistema.xml)\n";
-    std::cout << "15. search <nome> <0|1> - Procurar ficheiro (0) ou directoria (1) e devolver caminho completo\n";        std::cout << "16. help - Mostrar comandos\n";
-    std::cout << "17. exit - Sair\n";
+    std::cout << "15. lerxml <ficheiro> - Ler sistema de ficheiros a partir de um ficheiro XML\n";
+    std::cout << "16. search <nome> <0|1> - Procurar ficheiro (0) ou directoria (1) e devolver caminho completo\n";
+    std::cout << "17. help - Mostrar comandos\n";
+    std::cout << "18. exit - Sair\n";
 }
 
 int main() {
     auto root = std::make_shared<Directory>("/");
     Directory* currentDir = root.get();
     std::string command;
-    
+
     std::cout << "Bem-vindo ao Gestor de Diretorias!" << std::endl;
     printCommands();
-    
+
     while (true) {
         std::cout << "\n" << currentDir->getName() << "> ";
         std::string cmd;
         std::cin >> cmd;
-        
+
         if (cmd == "exit") {
             break;
         }
@@ -97,7 +99,6 @@ int main() {
             std::cout << "Tamanho total: " << currentDir->getTotalSize() << " bytes\n";
         }
         else if (cmd == "maior") {
-            // Procurar o maior ficheiro a partir da diretoria atual (incluindo subdiretorias)
             auto [path, size] = currentDir->findLargestFileWithPath("");
             if (path.empty()) {
                 std::cout << "Nenhum ficheiro encontrado nesta diretoria ou subdiretorias.\n";
@@ -106,11 +107,10 @@ int main() {
             }
         }
         else if (cmd == "dirmais") {
-            // Encontrar a diretoria (a partir da atual) com mais elementos (arquivos + subdiretorias)
             Directory* bestDir = currentDir;
             int bestCount = currentDir->getElementCount();
             std::queue<std::pair<Directory*, std::string>> q;
-            q.push({currentDir, currentDir->getName()});
+            q.push({ currentDir, currentDir->getName() });
 
             while (!q.empty()) {
                 auto [d, path] = q.front(); q.pop();
@@ -120,60 +120,35 @@ int main() {
                     bestDir = d;
                 }
                 for (const auto& sub : d->getSubdirectories()) {
-                    q.push({sub.get(), path + "\\" + sub->getName()});
+                    q.push({ sub.get(), path + "\\" + sub->getName() });
                 }
             }
 
-            // Mostrar resultado (caminho relativo à diretoria atual)
-            // Se a diretoria atual for a raiz '/', a string conterá nomes separados por '\\'
-            std::string resultPath = bestDir->getName();
-            // Reconstruir caminho relativo usando parent chain até currentDir
-            Directory* it = bestDir;
-            std::string rel;
-            while (it && it != currentDir->getParent()) {
-                if (rel.empty()) rel = it->getName(); else rel = it->getName() + std::string("\\") + rel;
-                it = it->getParent();
-                if (it == nullptr) break;
-                if (it == currentDir->getParent()) break;
-            }
-            if (!rel.empty()) resultPath = rel;
-
-            std::cout << "Diretoria com mais elementos: " << resultPath << " (" << bestCount << " elementos)\n";
+            std::cout << "Diretoria com mais elementos: " 
+                      << bestDir->getName() << " (" << bestCount << " elementos)\n";
         }
         else if (cmd == "dirmenos") {
-            // Encontrar a diretoria (a partir da atual) com menos elementos (arquivos + subdiretorias)
             Directory* minDir = currentDir;
             int minCount = currentDir->getElementCount();
-            std::queue<std::pair<Directory*, std::string>> q2;
-            q2.push({currentDir, currentDir->getName()});
+            std::queue<std::pair<Directory*, std::string>> q;
+            q.push({ currentDir, currentDir->getName() });
 
-            while (!q2.empty()) {
-                auto [d, path] = q2.front(); q2.pop();
+            while (!q.empty()) {
+                auto [d, path] = q.front(); q.pop();
                 int cnt = d->getElementCount();
                 if (cnt < minCount) {
                     minCount = cnt;
                     minDir = d;
                 }
                 for (const auto& sub : d->getSubdirectories()) {
-                    q2.push({sub.get(), path + "\\" + sub->getName()});
+                    q.push({ sub.get(), path + "\\" + sub->getName() });
                 }
             }
 
-            // Reconstruir caminho relativo à diretoria atual
-            std::string rel2;
-            Directory* it2 = minDir;
-            while (it2 && it2 != currentDir->getParent()) {
-                if (rel2.empty()) rel2 = it2->getName(); else rel2 = it2->getName() + std::string("\\") + rel2;
-                it2 = it2->getParent();
-                if (it2 == nullptr) break;
-                if (it2 == currentDir->getParent()) break;
-            }
-            std::string resultPath2 = rel2.empty() ? minDir->getName() : rel2;
-            std::cout << "Diretoria com menos elementos: " << resultPath2 << " (" << minCount << " elementos)\n";
+            std::cout << "Diretoria com menos elementos: " 
+                      << minDir->getName() << " (" << minCount << " elementos)\n";
         }
         else if (cmd == "maisespaco") {
-            // Encontrar, entre as subdiretorias imediatas da diretoria atual,
-            // qual ocupa mais espaço (incluindo o conteúdo recursivo dessas subdiretorias).
             const auto& subs = currentDir->getSubdirectories();
             if (subs.empty()) {
                 std::cout << "Nao existem subdiretorias na diretoria atual.\n";
@@ -189,9 +164,7 @@ int main() {
                 }
                 if (bestDir) {
                     std::cout << "Diretoria que ocupa mais espaco: " << bestDir->getName()
-                              << " (" << bestSize << " bytes)\n";
-                } else {
-                    std::cout << "Nenhuma diretoria encontrada.\n";
+                        << " (" << bestSize << " bytes)\n";
                 }
             }
         }
@@ -201,11 +174,12 @@ int main() {
                 std::cout << "Uso: removerall <DIR|FILE>\n";
                 continue;
             }
-            // normalize tipo to uppercase
-            std::transform(tipo.begin(), tipo.end(), tipo.begin(), [](unsigned char c){ return std::toupper(c); });
+
+            std::transform(tipo.begin(), tipo.end(), tipo.begin(),
+                [](unsigned char c) { return std::toupper(c); });
 
             bool removed = false;
-            // collect all directories (pointers) in the tree
+
             std::vector<Directory*> allDirs;
             std::queue<Directory*> q;
             q.push(root.get());
@@ -216,7 +190,6 @@ int main() {
             }
 
             if (tipo == "DIR") {
-                // remove all subdirectories from every directory
                 for (Directory* d : allDirs) {
                     auto subs = d->getSubdirectories();
                     for (const auto& s : subs) {
@@ -224,8 +197,8 @@ int main() {
                         removed = true;
                     }
                 }
-            } else if (tipo == "FILE") {
-                // remove all files from every directory
+            }
+            else if (tipo == "FILE") {
                 for (Directory* d : allDirs) {
                     auto files = d->getFiles();
                     for (const auto& f : files) {
@@ -233,17 +206,17 @@ int main() {
                         removed = true;
                     }
                 }
-            } else {
+            }
+            else {
                 std::cout << "Tipo invalido. Use DIR ou FILE." << "\n";
                 continue;
             }
 
-            if (removed) std::cout << "Remocao concluida." << "\n";
-            else std::cout << "Nenhuma ocorrencia encontrada para remover." << "\n";
+            if (removed) std::cout << "Remocao concluida.\n";
+            else std::cout << "Nenhuma ocorrencia encontrada para remover.\n";
         }
         else if (cmd == "exportarxml") {
             std::string path;
-            // read optional path; if none provided, use default
             if (!(std::cin >> path)) {
                 path = "sistema.xml";
             }
@@ -253,28 +226,47 @@ int main() {
             sf.Escrever_XML(path);
             std::cout << "Sistema exportado para: " << path << "\n";
         }
+        else if (cmd == "lerxml") {
+            std::string path;
+            if (!(std::cin >> path)) {
+                std::cout << "Uso: lerxml <ficheiro>\n";
+                continue;
+            }
+
+            SistemaFicheiros sf;
+            bool sucesso = sf.Ler_XML(path);
+            if (sucesso) {
+                root = sf.GetRoot();
+                currentDir = root.get();
+                std::cout << "Sistema carregado com sucesso a partir de: " << path << "\n";
+            }
+            else {
+                std::cout << "Falha ao carregar o sistema a partir de: " << path << "\n";
+            }
+        }
         else if (cmd == "search") {
             std::string nome;
             int tipo;
             if (!(std::cin >> nome >> tipo)) {
-                std::cout << "Uso: search <nome> <0|1>  (0=ficheiro, 1=directoria)\n";
+                std::cout << "Uso: search <nome> <0|1>\n";
                 continue;
             }
 
             SistemaFicheiros sf;
             sf.SetRoot(root);
-            std::string* res = sf.Search(nome, tipo);
-            if (res == nullptr) {
+
+            // *** ALTERAÇÃO AQUI *** 
+            auto res = sf.Search(nome, tipo);   // agora devolve optional<string>
+            if (!res.has_value()) {
                 std::cout << "Nao encontrado: " << nome << "\n";
             } else {
-                std::cout << "Encontrado: " << *res << "\n";
-                delete res;
+                std::cout << "Encontrado: " << res.value() << "\n";
             }
         }
         else {
             std::cout << "Comando invalido. Digite 'help' para ver os comandos disponíveis.\n";
         }
     }
-    
+
     return 0;
 }
