@@ -1,1 +1,1 @@
-implementei o 12 e tive a corrigir umas cenas no codigo
+implementei ate ao 14, pus um resumo na 12 para ter algum tipo de output
