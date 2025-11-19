@@ -22,12 +22,14 @@ void printCommands() {
     std::cout << "10. dirmais - Mostrar diretoria com mais elementos (a partir da diretoria atual)\n";
     std::cout << "11. dirmenos - Mostrar diretoria com menos elementos (a partir da diretoria atual)\n";
     std::cout << "12. maisespaco - Mostrar diretoria que ocupa mais espaço (a partir da raiz do sistema)\n";
-    std::cout << "13. removerall <DIR|FILE> - Remover todas as diretorias ou todos os ficheiros\n";
-    std::cout << "14. exportarxml <ficheiro> - Exportar o sistema em memoria para XML (default: sistema.xml)\n";
-    std::cout << "15. lerxml <ficheiro> - Ler sistema de ficheiros a partir de um ficheiro XML\n";
-    std::cout << "16. search <nome> <0|1> - Procurar ficheiro (0) ou directoria (1) e devolver caminho completo\n";
-    std::cout << "17. help - Mostrar comandos\n";
-    std::cout << "18. exit - Sair\n";
+    std::cout << "13. search <nome> <0|1> - Procurar ficheiro (0) ou directoria (1) e devolver caminho completo\n";
+    std::cout << "14. removerall <DIR|FILE> - Remover todas as diretorias ou todos os ficheiros\n";
+    std::cout << "15. exportarxml <ficheiro> - Exportar o sistema em memoria para XML (default: sistema.xml)\n";
+    std::cout << "16. lerxml <ficheiro> - Ler sistema de ficheiros a partir de um ficheiro XML\n";
+    std::cout << "17. movefile <nome> <dir> - Mover ficheiro para outra diretoria\n";
+    std::cout << "18. movedir <DirOld> <DirNew> - Mover diretoria (e subárvore) para outra diretoria\n";
+    std::cout << "18. help - Mostrar comandos\n";
+    std::cout << "19. exit - Sair\n";
 }
 
 int main() {
@@ -239,6 +241,8 @@ int main() {
                 root = sf.GetRoot();
                 currentDir = root.get();
                 std::cout << "Sistema carregado com sucesso a partir de: " << path << "\n";
+                std::cout << "Resumo: " << sf.ContarDirectorias() << " diretorias, "
+                          << sf.ContarFicheiros() << " ficheiros, " << sf.Memoria() << " bytes" << std::endl;
             }
             else {
                 std::cout << "Falha ao carregar o sistema a partir de: " << path << "\n";
@@ -255,13 +259,38 @@ int main() {
             SistemaFicheiros sf;
             sf.SetRoot(root);
 
-            // *** ALTERAÇÃO AQUI *** 
-            auto res = sf.Search(nome, tipo);   // agora devolve optional<string>
+            auto res = sf.Search(nome, tipo); 
             if (!res.has_value()) {
                 std::cout << "Nao encontrado: " << nome << "\n";
             } else {
                 std::cout << "Encontrado: " << res.value() << "\n";
             }
+        }
+        else if (cmd == "movefile") {
+            std::string nome, dir;
+            if (!(std::cin >> nome >> dir)) {
+                std::cout << "Uso: movefile <nome> <dir>\n";
+                continue;
+            }
+
+            SistemaFicheiros sf;
+            sf.SetRoot(root);
+            bool ok = sf.MoveFicheiro(nome, dir);
+            if (ok) std::cout << "Ficheiro movido: " << nome << " -> " << dir << "\n";
+            else std::cout << "Falha ao mover ficheiro (nao encontrado, destino inexistente, duplicado ou ja na pasta destino)\n";
+        }
+        else if (cmd == "movedir") {
+            std::string oldName, newName;
+            if (!(std::cin >> oldName >> newName)) {
+                std::cout << "Uso: movedir <DirOld> <DirNew>\n";
+                continue;
+            }
+
+            SistemaFicheiros sf;
+            sf.SetRoot(root);
+            bool ok = sf.MoverDirectoria(oldName, newName);
+            if (ok) std::cout << "Directoria movida: " << oldName << " -> " << newName << "\n";
+            else std::cout << "Falha ao mover directoria (nao encontrada, destino inexistente, ou destino dentro de origem)\n";
         }
         else {
             std::cout << "Comando invalido. Digite 'help' para ver os comandos disponíveis.\n";

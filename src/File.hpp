@@ -8,17 +8,15 @@ class File {
 private:
     std::string name;
     size_t size;
-    std::string date; // formato: "YYYY|MM|DD"
+    std::string date; 
 
 public:
     File(const std::string& name, size_t size);
     
-    // Getters
     std::string getName() const;
     size_t getSize() const;
     std::string getDate() const;
     
-    // Setters
     void setName(const std::string& newName);
     void setDate(const std::string& newDate);
 };

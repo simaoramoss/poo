@@ -5,7 +5,6 @@
 
 File::File(const std::string& name, size_t size) 
     : name(name), size(size) {
-    // Set current date
     time_t now = time(0);
     tm* ltm = localtime(&now);
     

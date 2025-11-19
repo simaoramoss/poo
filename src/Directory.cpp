@@ -26,6 +26,12 @@ void Directory::addSubdirectory(const std::string& name) {
     subdirectories.push_back(newDir);
 }
 
+void Directory::addSubdirectoryPtr(std::shared_ptr<Directory> dir) {
+    if (!dir) return;
+    dir->setParent(this);
+    subdirectories.push_back(dir);
+}
+
 void Directory::addFile(const std::string& name, size_t size) {
     auto newFile = std::make_shared<File>(name, size);
     files.push_back(newFile);
@@ -38,6 +44,19 @@ void Directory::removeSubdirectory(const std::string& name) {
     if (it != subdirectories.end()) {
         subdirectories.erase(it);
     }
+}
+
+std::shared_ptr<Directory> Directory::takeSubdirectory(const std::string& name) {
+    auto it = std::find_if(subdirectories.begin(), subdirectories.end(),
+        [&name](const auto& dir) { return dir->getName() == name; });
+    if (it == subdirectories.end()) return nullptr;
+    std::shared_ptr<Directory> ptr = *it;
+    subdirectories.erase(it);
+    return ptr;
+}
+
+void Directory::setParent(Directory* p) {
+    parent = p;
 }
 
 void Directory::removeFile(const std::string& name) {

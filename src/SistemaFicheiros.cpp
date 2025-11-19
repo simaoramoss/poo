@@ -1,6 +1,4 @@
-// SistemaFicheiros.cpp
 #include "SistemaFicheiros.hpp"
-
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
@@ -34,7 +32,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
         static const std::vector<std::string> ignoreDirs = { ".git", ".vscode", "bin", "obj", "build" };
         static const std::vector<std::string> ignoreFiles = { ".gitignore", ".DS_Store" };
 
-        // Iterador recursivo com skip_permission_denied
         for (auto it = fs::recursive_directory_iterator(basePath, fs::directory_options::skip_permission_denied);
              it != fs::recursive_directory_iterator(); ++it)
         {
@@ -63,7 +60,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
             // calcular caminho relativo de forma segura
             fs::path rel = entryPath.lexically_relative(basePath);
             if (rel.empty()) {
-                // entry é exatamente a basePath (a raiz carregada) — ignorar
                 continue;
             }
 
@@ -84,7 +80,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                 std::error_code ec;
                 auto fileSize = fs::file_size(entryPath, ec);
                 if (ec) {
-                    // Não conseguimos ler o tamanho — simplesmente ignorar este ficheiro
                     continue;
                 }
 
@@ -96,7 +91,7 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                         std::string segment = part.string();
                         auto subdir = dir->findSubdirectory(segment);
                         if (!subdir) {
-                            // Se faltar uma diretoria na árvore, cria-a (mais robusto)
+                            // Se faltar uma diretoria na árvore, cria-a.
                             dir->addSubdirectory(segment);
                             subdir = dir->findSubdirectory(segment);
                         }
@@ -106,7 +101,7 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                 // adiciona o ficheiro
                 dir->addFile(entryPath.filename().string(), fileSize);
             }
-        } // fim for iterator
+        }
 
         return true;
     } catch (const std::exception& e) {
@@ -130,7 +125,6 @@ int SistemaFicheiros::ContarDirectorias() const {
 
 int SistemaFicheiros::Memoria() const {
     if (!root) return 0;
-    // cast seguro: se te preocupa overflow, muda a assinatura para size_t
     return static_cast<int>(root->getTotalSize());
 }
 
@@ -210,14 +204,14 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisEspaco() const {
 std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     if (!dir) return std::string();
 
-    // recolher nomes até à raiz
+   
     std::vector<std::string> parts;
     Directory* cur = dir;
     while (cur) {
         parts.push_back(cur->getName());
         cur = cur->getParent();
     }
-    // construir caminho na ordem correta (da raiz para a folha)
+   
     fs::path p;
     for (auto it = parts.rbegin(); it != parts.rend(); ++it) {
         p /= *it;
@@ -232,7 +226,6 @@ std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
     size_t maxSize = 0;
     bool found = false;
 
-    // BFS with path tracking using fs::path (no in-place mutation)
     std::queue<std::pair<std::shared_ptr<Directory>, fs::path>> queue;
     queue.push({root, fs::path(root->getName())});
 
@@ -240,7 +233,6 @@ std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
         auto [current, currentPath] = queue.front();
         queue.pop();
 
-        // Check files in current directory (without modifying currentPath)
         for (const auto& file : current->getFiles()) {
             size_t sz = file->getSize();
             fs::path p = currentPath / file->getName();
@@ -250,8 +242,6 @@ std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
                 maxPath = p.string();
             }
         }
-
-        // Enqueue subdirectories with their paths
         for (const auto& subdir : current->getSubdirectories()) {
             fs::path childPath = currentPath / subdir->getName();
             queue.push({subdir, childPath});
@@ -273,8 +263,7 @@ void SistemaFicheiros::getAllDirectories(std::shared_ptr<Directory> dir,
     }
 }
 
-void SistemaFicheiros::getAllFiles(std::shared_ptr<Directory> dir,
-                                   std::list<std::shared_ptr<File>>& files) const {
+void SistemaFicheiros::getAllFiles(std::shared_ptr<Directory> dir, std::list<std::shared_ptr<File>>& files) const {
     if (!dir) return;
     for (const auto& file : dir->getFiles()) {
         files.push_back(file);
@@ -292,15 +281,13 @@ bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo)
     std::function<void(std::shared_ptr<Directory>)> dfs = [&](std::shared_ptr<Directory> dir) {
         if (!dir) return;
 
-        // Remove files with name == s in this directory (if tipo != "DIR")
+     
         if (tipo != "DIR") {
             while (dir->findFile(s)) {
                 dir->removeFile(s);
                 removed = true;
             }
         }
-
-        // Iterate over a copy of subdirectories to allow mutating the container
         auto subs = dir->getSubdirectories();
         for (const auto& sub : subs) {
             if (tipo == "DIR" && sub->getName() == s) {
@@ -314,6 +301,149 @@ bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo)
 
     dfs(root);
     return removed;
+}
+
+bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &DirNova) {
+    if (!root) return false;
+
+    std::queue<std::shared_ptr<Directory>> q;
+    q.push(root);
+    std::shared_ptr<Directory> sourceDir = nullptr;
+    std::shared_ptr<File> filePtr = nullptr;
+
+    while (!q.empty() && !filePtr) {
+        auto cur = q.front(); q.pop();
+        for (const auto &f : cur->getFiles()) {
+            if (f->getName() == Fich) {
+                sourceDir = cur;
+                filePtr = f;
+                break;
+            }
+        }
+        for (const auto &sub : cur->getSubdirectories()) q.push(sub);
+    }
+
+    if (!filePtr || !sourceDir) return false; 
+
+    
+    std::shared_ptr<Directory> destDir = nullptr;
+    bool isPath = (DirNova.find('\\') != std::string::npos) || (DirNova.find('/') != std::string::npos);
+    if (isPath) {
+        std::vector<std::string> parts;
+        std::string token;
+        for (char c : DirNova) {
+            if (c == '\\' || c == '/') {
+                if (!token.empty()) { parts.push_back(token); token.clear(); }
+            } else token.push_back(c);
+        }
+        if (!token.empty()) parts.push_back(token);
+
+       
+        std::shared_ptr<Directory> cur = root;
+        for (const auto &p : parts) {
+            auto next = cur->findSubdirectory(p);
+            if (!next) { cur = nullptr; break; }
+            cur = next;
+        }
+        destDir = cur;
+    } else {
+        std::queue<std::shared_ptr<Directory>> q2;
+        q2.push(root);
+        while (!q2.empty() && !destDir) {
+            auto cur = q2.front(); q2.pop();
+            if (cur->getName() == DirNova) {
+                destDir = cur;
+                break;
+            }
+            for (const auto &sub : cur->getSubdirectories()) q2.push(sub);
+        }
+    }
+
+    if (!destDir) return false; // não encontrou
+
+    // Não faz nada se tiver na mesma diretoria
+    if (sourceDir.get() == destDir.get()) return false;
+
+    // Se o destino já tiver um ficheiro com o mesmo nome, não faz nada.
+    if (destDir->findFile(filePtr->getName())) return false;
+
+    // Preserva tamanho e data
+    destDir->addFile(filePtr->getName(), filePtr->getSize());
+    auto added = destDir->findFile(filePtr->getName());
+    if (added) added->setDate(filePtr->getDate());
+
+    sourceDir->removeFile(filePtr->getName());
+
+    return true;
+}
+
+bool SistemaFicheiros::MoverDirectoria(const std::string &DirOld, const std::string &DirNew) {
+    if (!root) return false;
+
+    std::shared_ptr<Directory> found = nullptr;
+    std::shared_ptr<Directory> parentOfFound = nullptr;
+    std::queue<std::pair<std::shared_ptr<Directory>, std::shared_ptr<Directory>>> q;
+    q.push({root, nullptr});
+    while (!q.empty() && !found) {
+        auto [cur, parent] = q.front(); q.pop();
+        if (cur->getName() == DirOld) {
+            found = cur; parentOfFound = parent; break;
+        }
+        for (const auto &sub : cur->getSubdirectories()) q.push({sub, cur});
+    }
+
+    if (!found) return false; 
+
+    if (!parentOfFound) {
+        // Não mover raiz que é a DirOld
+        return false;
+    }
+
+    // Encontra DirNew
+    std::shared_ptr<Directory> dest = nullptr;
+    bool isPath = (DirNew.find('\\') != std::string::npos) || (DirNew.find('/') != std::string::npos);
+    if (isPath) {
+        std::vector<std::string> parts;
+        std::string token;
+        for (char c : DirNew) {
+            if (c == '\\' || c == '/') { if (!token.empty()) { parts.push_back(token); token.clear(); } }
+            else token.push_back(c);
+        }
+        if (!token.empty()) parts.push_back(token);
+
+        std::shared_ptr<Directory> cur = root;
+        for (const auto &p : parts) {
+            auto next = cur->findSubdirectory(p);
+            if (!next) { cur = nullptr; break; }
+            cur = next;
+        }
+        dest = cur;
+    } else {
+        std::queue<std::shared_ptr<Directory>> q2; q2.push(root);
+        while (!q2.empty() && !dest) {
+            auto cur = q2.front(); q2.pop();
+            if (cur->getName() == DirNew) { dest = cur; break; }
+            for (const auto &sub : cur->getSubdirectories()) q2.push(sub);
+        }
+    }
+
+    if (!dest) return false;
+
+    // Verifica que destino nao é sub da DirOld
+    Directory* walker = dest.get();
+    while (walker) {
+        if (walker == found.get()) {
+            return false;
+        }
+        walker = walker->getParent();
+    }
+
+   
+    auto movedPtr = parentOfFound->takeSubdirectory(found->getName());
+    if (!movedPtr) return false; 
+
+    dest->addSubdirectoryPtr(movedPtr);
+    return true;
 }
 
 void SistemaFicheiros::SetRoot(std::shared_ptr<Directory> r) {
@@ -352,13 +482,11 @@ void SistemaFicheiros::Escrever_XML(const std::string &s) {
         std::string ind(indent, ' ');
         ofs << ind << "<Directory name=\"" << escapeXml(dir->getName()) << "\">\n";
 
-        // files (name + size)
         for (const auto &f : dir->getFiles()) {
             ofs << ind << "  <File name=\"" << escapeXml(f->getName())
                 << "\" size=\"" << f->getSize() << "\" />\n";
         }
 
-        // subdirectories
         for (const auto &sub : dir->getSubdirectories()) {
             writeDir(sub, indent + 2);
         }
@@ -375,7 +503,6 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
         std::ifstream ifs(s);
         if (!ifs.is_open()) return false;
 
-        // Limpar o sistema de ficheiros existente
         clearSystem();
 
         auto unescapeXml = [](const std::string &in) {
@@ -407,7 +534,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
             return line.substr(start, end - start);
         };
 
-        // Ler o ficheiro completo
+
         std::string xmlContent;
         std::string line;
         while (std::getline(ifs, line)) {
@@ -415,8 +542,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
         }
         ifs.close();
 
-        // Stack para rastrear diretórios
-        std::stack<Directory*> dirStack;
+        std::stack<std::shared_ptr<Directory>> dirStack;
         size_t pos = 0;
 
         while (pos < xmlContent.length()) {
@@ -428,52 +554,62 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
 
             std::string tag = xmlContent.substr(tagStart + 1, tagEnd - tagStart - 1);
 
-            // Ignorar XML declaration
+     
             if (!tag.empty() && tag[0] == '?') {
                 pos = tagEnd + 1;
                 continue;
             }
 
-            // Fechar diretoria </Directory>
+        
             if (!tag.empty() && tag[0] == '/') {
                 if (!dirStack.empty()) dirStack.pop();
                 pos = tagEnd + 1;
                 continue;
             }
 
-            // Ficheiro <File .../>
+         
             if (tag.rfind("File", 0) == 0) {
                 std::string name = unescapeXml(extractAttribute(tag, "name"));
                 std::string sizeStr = extractAttribute(tag, "size");
+                std::string dateStr = extractAttribute(tag, "date");
 
                 if (!name.empty() && !sizeStr.empty() && !dirStack.empty()) {
                     size_t fileSize = 0;
                     try { fileSize = std::stoull(sizeStr); }
                     catch (...) { fileSize = 0; }
-                    dirStack.top()->addFile(name, fileSize);
+
+                    auto parentDir = dirStack.top();
+                    parentDir->addFile(name, fileSize);
+                    if (!dateStr.empty()) {
+                        auto fptr = parentDir->findFile(name);
+                        if (fptr) fptr->setDate(unescapeXml(dateStr));
+                    }
                 }
                 pos = tagEnd + 1;
                 continue;
             }
-
-            // Abrir diretoria <Directory name="...">
             if (tag.rfind("Directory", 0) == 0) {
                 std::string dirName = unescapeXml(extractAttribute(tag, "name"));
 
                 if (!dirName.empty()) {
                     if (root == nullptr) {
                         root = std::make_shared<Directory>(dirName);
-                        dirStack.push(root.get());
-                    } else {
-                        Directory *currentDir = dirStack.top();
+                        dirStack.push(root);
+                    } else if (!dirStack.empty()) {
+                        auto currentDir = dirStack.top();
                         currentDir->addSubdirectory(dirName);
                         auto newDir = currentDir->findSubdirectory(dirName);
-                        if (newDir) dirStack.push(newDir.get());
+                        if (newDir) dirStack.push(newDir);
                         else {
-                            // Shouldn't happen, but avoid crash
+                            // Evita crash
                             pos = tagEnd + 1;
                             continue;
                         }
+                    } else {
+                        auto dummyParent = root;
+                        dummyParent->addSubdirectory(dirName);
+                        auto newDir = dummyParent->findSubdirectory(dirName);
+                        if (newDir) dirStack.push(newDir);
                     }
                 }
                 pos = tagEnd + 1;
@@ -498,7 +634,6 @@ std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Ti
 
     // Tipo: 1 = diretoria, 0 = ficheiro
     if (Tipo == 1) {
-        // BFS for directory
         std::queue<std::shared_ptr<Directory>> q;
         q.push(root);
         while (!q.empty()) {
@@ -510,7 +645,7 @@ std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Ti
         }
         return std::nullopt;
     } else {
-        // search for file
+       
         std::queue<std::pair<std::shared_ptr<Directory>, fs::path>> q;
         q.push({root, fs::path(root->getName())});
         while (!q.empty()) {
