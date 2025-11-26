@@ -64,6 +64,12 @@ int main() {
     // sistema de ficheiros wrapper (liga root)
     SistemaFicheiros sf;
     sf.SetRoot(root);
+    // tentar carregar sistema guardado anteriormente (persistencia)
+    if (sf.Ler_XML("sistema_saved.xml")) {
+        root = sf.GetRoot();
+        currentDir = root.get();
+        std::cout << "Sistema carregado de sistema_saved.xml" << std::endl;
+    }
 
     std::cout << "Bem-vindo ao Gestor de Diretorias!" << std::endl;
     printCommands();
@@ -270,7 +276,7 @@ int main() {
                 root = sf.GetRoot();
                 currentDir = root.get();
                 std::cout << "Sistema carregado com sucesso a partir de: " << path << "\n";
-                std::cout << "Resumo: " << sf.ContarDirectorias() << " diretorias, "
+                std::cout << "Resumo: " << sf.ContarDirectorios() << " diretorias, "
                           << sf.ContarFicheiros() << " ficheiros, " << sf.Memoria() << " bytes" << std::endl;
             }
             else {
@@ -325,13 +331,11 @@ int main() {
             }
 
             sf.SetRoot(root);
-            std::string* pdate = sf.DataFicheiro(fname); // conforme a tua funcao: devolve new std::string(...) ou nullptr
-            if (!pdate) {
+            auto pdate = sf.DataFicheiro(fname);
+            if (!pdate.has_value()) {
                 std::cout << "Ficheiro nao encontrado: " << fname << "\n";
             } else {
-                // tenta converter asctime style para YYYY|M|D (se aplicavel)
-                std::string stored = *pdate;
-                delete pdate; // libertar memoria (DataFicheiro devolve new std::string)
+                std::string stored = pdate.value();
                 std::string out = convertAsctimeToYMD(stored);
                 std::cout << "Data de " << fname << ": " << out << "\n";
             }

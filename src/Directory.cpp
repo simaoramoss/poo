@@ -173,7 +173,7 @@ std::pair<std::string, size_t> Directory::findLargestFileWithPath(const std::str
         }
     }
 
-    return found ? std::make_pair(bestPath, bestSize) : std::make_pair(std::string(), 0u);
+    return found ? std::make_pair(bestPath, bestSize) : std::make_pair(std::string(), static_cast<size_t>(0));
 }
 
 void Directory::findAllDirectories(const std::string& name, std::list<std::string>& paths, const std::string& currentPath) {

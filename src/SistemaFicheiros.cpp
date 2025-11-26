@@ -116,7 +116,7 @@ int SistemaFicheiros::ContarFicheiros() const {
     return root ? root->getTotalFiles() : 0;
 }
 
-int SistemaFicheiros::ContarDirectorias() const {
+int SistemaFicheiros::ContarDirectorios() const {
     return root ? root->getTotalDirectories() : 0;
 }
 

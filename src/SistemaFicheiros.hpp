@@ -50,6 +50,7 @@ public:
     bool RemoverAll(const std::string &s, const std::string &tipo);
     bool MoveFicheiro(const std::string &Fich, const std::string &DirNova);
     bool MoverDirectoria(const std::string &DirOld, const std::string &DirNew);
+    std::optional<std::string> Search(const std::string &s, int Tipo) const;
 
     // ----------------------------------------
     // XML
