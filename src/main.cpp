@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <filesystem>
 #include "Directory.hpp"
 #include "SistemaFicheiros.hpp"
+
+namespace fs = std::filesystem;
 
 void printCommands() {
     std::cout << "\nComandos disponíveis:\n";
@@ -28,14 +31,39 @@ void printCommands() {
     std::cout << "16. lerxml <ficheiro> - Ler sistema de ficheiros a partir de um ficheiro XML\n";
     std::cout << "17. movefile <nome> <dir> - Mover ficheiro para outra diretoria\n";
     std::cout << "18. movedir <DirOld> <DirNew> - Mover diretoria (e subárvore) para outra diretoria\n";
-    std::cout << "18. help - Mostrar comandos\n";
-    std::cout << "19. exit - Sair\n";
+    std::cout << "19. getdate <nome_ficheiro> - Mostrar data do ficheiro (YYYY|M|D)\n";
+    std::cout << "20. help - Mostrar comandos\n";
+    std::cout << "21. exit - Sair (guarda automaticamente em sistema_saved.xml)\n";
+}
+
+static std::string convertAsctimeToYMD(const std::string& asctimeStr) {
+    // Asctime typical format: "Wed Jun 30 21:49:08 1993"
+    // We'll try to parse; if fails, return the original string.
+    std::istringstream iss(asctimeStr);
+    std::tm tm = {};
+    // Note: std::get_time with locale-dependent format; try this format:
+    iss.str(asctimeStr);
+    iss.clear();
+    iss >> std::get_time(&tm, "%a %b %d %H:%M:%S %Y");
+    if (iss.fail()) {
+        // try alternative: maybe the string already in "YYYY|M|D" or other; try to detect YYYY at end
+        // fallback: return original
+        return asctimeStr;
+    }
+    int year = tm.tm_year + 1900;
+    int mon = tm.tm_mon + 1;
+    int day = tm.tm_mday;
+    return std::to_string(year) + "|" + std::to_string(mon) + "|" + std::to_string(day);
 }
 
 int main() {
+    // inicializa árvore vazia com raiz "/"
     auto root = std::make_shared<Directory>("/");
     Directory* currentDir = root.get();
-    std::string command;
+
+    // sistema de ficheiros wrapper (liga root)
+    SistemaFicheiros sf;
+    sf.SetRoot(root);
 
     std::cout << "Bem-vindo ao Gestor de Diretorias!" << std::endl;
     printCommands();
@@ -43,9 +71,13 @@ int main() {
     while (true) {
         std::cout << "\n" << currentDir->getName() << "> ";
         std::string cmd;
-        std::cin >> cmd;
+        if (!(std::cin >> cmd)) break;
 
         if (cmd == "exit") {
+            // auto-save para permitir persistencia entre execucoes
+            sf.SetRoot(root);
+            sf.Escrever_XML("sistema_saved.xml");
+            std::cout << "Sistema guardado em sistema_saved.xml. A sair...\n";
             break;
         }
         else if (cmd == "help") {
@@ -126,7 +158,7 @@ int main() {
                 }
             }
 
-            std::cout << "Diretoria com mais elementos: " 
+            std::cout << "Diretoria com mais elementos: "
                       << bestDir->getName() << " (" << bestCount << " elementos)\n";
         }
         else if (cmd == "dirmenos") {
@@ -147,7 +179,7 @@ int main() {
                 }
             }
 
-            std::cout << "Diretoria com menos elementos: " 
+            std::cout << "Diretoria com menos elementos: "
                       << minDir->getName() << " (" << minCount << " elementos)\n";
         }
         else if (cmd == "maisespaco") {
@@ -166,7 +198,7 @@ int main() {
                 }
                 if (bestDir) {
                     std::cout << "Diretoria que ocupa mais espaco: " << bestDir->getName()
-                        << " (" << bestSize << " bytes)\n";
+                              << " (" << bestSize << " bytes)\n";
                 }
             }
         }
@@ -222,8 +254,6 @@ int main() {
             if (!(std::cin >> path)) {
                 path = "sistema.xml";
             }
-
-            SistemaFicheiros sf;
             sf.SetRoot(root);
             sf.Escrever_XML(path);
             std::cout << "Sistema exportado para: " << path << "\n";
@@ -235,7 +265,6 @@ int main() {
                 continue;
             }
 
-            SistemaFicheiros sf;
             bool sucesso = sf.Ler_XML(path);
             if (sucesso) {
                 root = sf.GetRoot();
@@ -256,10 +285,8 @@ int main() {
                 continue;
             }
 
-            SistemaFicheiros sf;
             sf.SetRoot(root);
-
-            auto res = sf.Search(nome, tipo); 
+            auto res = sf.Search(nome, tipo);
             if (!res.has_value()) {
                 std::cout << "Nao encontrado: " << nome << "\n";
             } else {
@@ -273,7 +300,6 @@ int main() {
                 continue;
             }
 
-            SistemaFicheiros sf;
             sf.SetRoot(root);
             bool ok = sf.MoveFicheiro(nome, dir);
             if (ok) std::cout << "Ficheiro movido: " << nome << " -> " << dir << "\n";
@@ -286,11 +312,29 @@ int main() {
                 continue;
             }
 
-            SistemaFicheiros sf;
             sf.SetRoot(root);
             bool ok = sf.MoverDirectoria(oldName, newName);
             if (ok) std::cout << "Directoria movida: " << oldName << " -> " << newName << "\n";
             else std::cout << "Falha ao mover directoria (nao encontrada, destino inexistente, ou destino dentro de origem)\n";
+        }
+        else if (cmd == "getdate") {
+            std::string fname;
+            if (!(std::cin >> fname)) {
+                std::cout << "Uso: getdate <nome_ficheiro>\n";
+                continue;
+            }
+
+            sf.SetRoot(root);
+            std::string* pdate = sf.DataFicheiro(fname); // conforme a tua funcao: devolve new std::string(...) ou nullptr
+            if (!pdate) {
+                std::cout << "Ficheiro nao encontrado: " << fname << "\n";
+            } else {
+                // tenta converter asctime style para YYYY|M|D (se aplicavel)
+                std::string stored = *pdate;
+                delete pdate; // libertar memoria (DataFicheiro devolve new std::string)
+                std::string out = convertAsctimeToYMD(stored);
+                std::cout << "Data de " << fname << ": " << out << "\n";
+            }
         }
         else {
             std::cout << "Comando invalido. Digite 'help' para ver os comandos disponíveis.\n";

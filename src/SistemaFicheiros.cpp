@@ -28,7 +28,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
         clearSystem();
         root = std::make_shared<Directory>(basePath.filename().string());
 
-        // Lista de diretórios e ficheiros a ignorar
         static const std::vector<std::string> ignoreDirs = { ".git", ".vscode", "bin", "obj", "build" };
         static const std::vector<std::string> ignoreFiles = { ".gitignore", ".DS_Store" };
 
@@ -39,7 +38,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
             fs::path entryPath = entry.path();
             std::string filename = entryPath.filename().string();
 
-            // Ignorar diretórios inteiros (não entrar neles)
             if (entry.is_directory() &&
                 std::find(ignoreDirs.begin(), ignoreDirs.end(), filename) != ignoreDirs.end())
             {
@@ -47,7 +45,6 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                 continue;
             }
 
-            // Ignorar ficheiros indesejados por nome/extensão
             if (!entry.is_directory()) {
                 std::string ext = entryPath.extension().string();
                 if (ext == ".exe" ||
@@ -57,14 +54,10 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                 }
             }
 
-            // calcular caminho relativo de forma segura
             fs::path rel = entryPath.lexically_relative(basePath);
-            if (rel.empty()) {
-                continue;
-            }
+            if (rel.empty()) continue;
 
             if (entry.is_directory()) {
-                // cria estrutura de diretórios (componentes de rel)
                 auto dir = root;
                 for (const auto& part : rel) {
                     std::string segment = part.string();
@@ -76,14 +69,10 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                     dir = subdir;
                 }
             } else {
-                // ficheiro: obter tamanho com error_code para evitar exceptions
                 std::error_code ec;
                 auto fileSize = fs::file_size(entryPath, ec);
-                if (ec) {
-                    continue;
-                }
+                if (ec) continue;
 
-                // localizar/garantir a diretoria onde o ficheiro deve ser adicionado
                 auto dir = root;
                 fs::path parent = rel.parent_path();
                 if (!parent.empty()) {
@@ -91,15 +80,25 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
                         std::string segment = part.string();
                         auto subdir = dir->findSubdirectory(segment);
                         if (!subdir) {
-                            // Se faltar uma diretoria na árvore, cria-a.
                             dir->addSubdirectory(segment);
                             subdir = dir->findSubdirectory(segment);
                         }
                         dir = subdir;
                     }
                 }
-                // adiciona o ficheiro
+
+                // Data do ficheiro
+                auto ftime = fs::last_write_time(entryPath, ec);
+                auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
+                    ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
+                );
+                std::time_t cftime = std::chrono::system_clock::to_time_t(sctp);
+                std::string dateStr = std::asctime(std::localtime(&cftime));
+                dateStr.erase(std::remove(dateStr.begin(), dateStr.end(), '\n'), dateStr.end());
+
                 dir->addFile(entryPath.filename().string(), fileSize);
+                auto fptr = dir->findFile(entryPath.filename().string());
+                if (fptr) fptr->setDate(dateStr);
             }
         }
 
@@ -114,18 +113,15 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
 }
 
 int SistemaFicheiros::ContarFicheiros() const {
-    if (!root) return 0;
-    return root->getTotalFiles();
+    return root ? root->getTotalFiles() : 0;
 }
 
 int SistemaFicheiros::ContarDirectorias() const {
-    if (!root) return 0;
-    return root->getTotalDirectories();
+    return root ? root->getTotalDirectories() : 0;
 }
 
 int SistemaFicheiros::Memoria() const {
-    if (!root) return 0;
-    return static_cast<int>(root->getTotalSize());
+    return root ? static_cast<int>(root->getTotalSize()) : 0;
 }
 
 std::optional<std::string> SistemaFicheiros::DirectoriaMaisElementos() const {
@@ -133,7 +129,6 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisElementos() const {
 
     std::shared_ptr<Directory> maxDir = root;
     int maxElements = root->getElementCount();
-
     std::queue<std::shared_ptr<Directory>> queue;
     queue.push(root);
 
@@ -148,7 +143,6 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisElementos() const {
             queue.push(subdir);
         }
     }
-
     return getAbsolutePath(maxDir.get());
 }
 
@@ -157,7 +151,6 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMenosElementos() const {
 
     std::shared_ptr<Directory> minDir = root;
     int minElements = root->getElementCount();
-
     std::queue<std::shared_ptr<Directory>> queue;
     queue.push(root);
 
@@ -172,7 +165,6 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMenosElementos() const {
             queue.push(subdir);
         }
     }
-
     return getAbsolutePath(minDir.get());
 }
 
@@ -181,7 +173,6 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisEspaco() const {
 
     std::shared_ptr<Directory> bestDir = root;
     size_t bestSize = root->getTotalSize();
-
     std::queue<std::shared_ptr<Directory>> q;
     q.push(root);
 
@@ -196,26 +187,19 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisEspaco() const {
             q.push(subdir);
         }
     }
-
-    std::string out = getAbsolutePath(bestDir.get()) + " (" + std::to_string(bestSize) + " bytes)";
-    return out;
+    return getAbsolutePath(bestDir.get()) + " (" + std::to_string(bestSize) + " bytes)";
 }
 
 std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     if (!dir) return std::string();
-
-   
     std::vector<std::string> parts;
     Directory* cur = dir;
     while (cur) {
         parts.push_back(cur->getName());
         cur = cur->getParent();
     }
-   
     fs::path p;
-    for (auto it = parts.rbegin(); it != parts.rend(); ++it) {
-        p /= *it;
-    }
+    for (auto it = parts.rbegin(); it != parts.rend(); ++it) p /= *it;
     return p.string();
 }
 
@@ -230,9 +214,7 @@ std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
     queue.push({root, fs::path(root->getName())});
 
     while (!queue.empty()) {
-        auto [current, currentPath] = queue.front();
-        queue.pop();
-
+        auto [current, currentPath] = queue.front(); queue.pop();
         for (const auto& file : current->getFiles()) {
             size_t sz = file->getSize();
             fs::path p = currentPath / file->getName();
@@ -243,17 +225,26 @@ std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
             }
         }
         for (const auto& subdir : current->getSubdirectories()) {
-            fs::path childPath = currentPath / subdir->getName();
-            queue.push({subdir, childPath});
+            queue.push({subdir, currentPath / subdir->getName()});
         }
     }
 
     if (!found) return std::nullopt;
-
-    std::string result = maxPath + " (" + std::to_string(maxSize) + " bytes)";
-    return result;
+    return maxPath + " (" + std::to_string(maxSize) + " bytes)";
 }
 
+// ----------------------------------------
+// GetRoot e SetRoot
+void SistemaFicheiros::SetRoot(std::shared_ptr<Directory> r) {
+    root = r;
+}
+
+std::shared_ptr<Directory> SistemaFicheiros::GetRoot() const {
+    return root;
+}
+
+// ----------------------------------------
+// Métodos auxiliares para listar diretórios e ficheiros
 void SistemaFicheiros::getAllDirectories(std::shared_ptr<Directory> dir,
                                          std::list<std::shared_ptr<Directory>>& dirs) const {
     if (!dir) return;
@@ -273,21 +264,22 @@ void SistemaFicheiros::getAllFiles(std::shared_ptr<Directory> dir, std::list<std
     }
 }
 
+// ----------------------------------------
+// Remover ficheiros ou diretórios
 bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo) {
     if (!root) return false;
-
     bool removed = false;
 
     std::function<void(std::shared_ptr<Directory>)> dfs = [&](std::shared_ptr<Directory> dir) {
         if (!dir) return;
 
-     
         if (tipo != "DIR") {
             while (dir->findFile(s)) {
                 dir->removeFile(s);
                 removed = true;
             }
         }
+
         auto subs = dir->getSubdirectories();
         for (const auto& sub : subs) {
             if (tipo == "DIR" && sub->getName() == s) {
@@ -303,6 +295,8 @@ bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo)
     return removed;
 }
 
+// ----------------------------------------
+// Mover ficheiro
 bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &DirNova) {
     if (!root) return false;
 
@@ -323,9 +317,8 @@ bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &
         for (const auto &sub : cur->getSubdirectories()) q.push(sub);
     }
 
-    if (!filePtr || !sourceDir) return false; 
+    if (!filePtr || !sourceDir) return false;
 
-    
     std::shared_ptr<Directory> destDir = nullptr;
     bool isPath = (DirNova.find('\\') != std::string::npos) || (DirNova.find('/') != std::string::npos);
     if (isPath) {
@@ -338,7 +331,6 @@ bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &
         }
         if (!token.empty()) parts.push_back(token);
 
-       
         std::shared_ptr<Directory> cur = root;
         for (const auto &p : parts) {
             auto next = cur->findSubdirectory(p);
@@ -359,15 +351,11 @@ bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &
         }
     }
 
-    if (!destDir) return false; // não encontrou
+    if (!destDir) return false;
 
-    // Não faz nada se tiver na mesma diretoria
     if (sourceDir.get() == destDir.get()) return false;
-
-    // Se o destino já tiver um ficheiro com o mesmo nome, não faz nada.
     if (destDir->findFile(filePtr->getName())) return false;
 
-    // Preserva tamanho e data
     destDir->addFile(filePtr->getName(), filePtr->getSize());
     auto added = destDir->findFile(filePtr->getName());
     if (added) added->setDate(filePtr->getDate());
@@ -377,6 +365,8 @@ bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &
     return true;
 }
 
+// ----------------------------------------
+// Mover diretório
 bool SistemaFicheiros::MoverDirectoria(const std::string &DirOld, const std::string &DirNew) {
     if (!root) return false;
 
@@ -392,14 +382,8 @@ bool SistemaFicheiros::MoverDirectoria(const std::string &DirOld, const std::str
         for (const auto &sub : cur->getSubdirectories()) q.push({sub, cur});
     }
 
-    if (!found) return false; 
+    if (!found || !parentOfFound) return false;
 
-    if (!parentOfFound) {
-        // Não mover raiz que é a DirOld
-        return false;
-    }
-
-    // Encontra DirNew
     std::shared_ptr<Directory> dest = nullptr;
     bool isPath = (DirNew.find('\\') != std::string::npos) || (DirNew.find('/') != std::string::npos);
     if (isPath) {
@@ -429,37 +413,26 @@ bool SistemaFicheiros::MoverDirectoria(const std::string &DirOld, const std::str
 
     if (!dest) return false;
 
-    // Verifica que destino nao é sub da DirOld
     Directory* walker = dest.get();
     while (walker) {
-        if (walker == found.get()) {
-            return false;
-        }
+        if (walker == found.get()) return false;
         walker = walker->getParent();
     }
 
-   
     auto movedPtr = parentOfFound->takeSubdirectory(found->getName());
-    if (!movedPtr) return false; 
+    if (!movedPtr) return false;
 
     dest->addSubdirectoryPtr(movedPtr);
     return true;
 }
 
-void SistemaFicheiros::SetRoot(std::shared_ptr<Directory> r) {
-    root = r;
-}
-
-std::shared_ptr<Directory> SistemaFicheiros::GetRoot() const {
-    return root;
-}
-
+// ----------------------------------------
+// XML
 void SistemaFicheiros::Escrever_XML(const std::string &s) {
     if (!root) return;
 
     auto escapeXml = [](const std::string &in) {
-        std::string out;
-        out.reserve(in.size());
+        std::string out; out.reserve(in.size());
         for (char c : in) {
             switch (c) {
                 case '&': out += "&amp;"; break;
@@ -477,6 +450,7 @@ void SistemaFicheiros::Escrever_XML(const std::string &s) {
     if (!ofs.is_open()) return;
 
     ofs << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+
     std::function<void(const std::shared_ptr<Directory>&, int)> writeDir;
     writeDir = [&](const std::shared_ptr<Directory> &dir, int indent) {
         std::string ind(indent, ' ');
@@ -484,7 +458,9 @@ void SistemaFicheiros::Escrever_XML(const std::string &s) {
 
         for (const auto &f : dir->getFiles()) {
             ofs << ind << "  <File name=\"" << escapeXml(f->getName())
-                << "\" size=\"" << f->getSize() << "\" />\n";
+                << "\" size=\"" << f->getSize()
+                << "\" date=\"" << escapeXml(f->getDate())
+                << "\" />\n";
         }
 
         for (const auto &sub : dir->getSubdirectories()) {
@@ -506,8 +482,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
         clearSystem();
 
         auto unescapeXml = [](const std::string &in) {
-            std::string out;
-            out.reserve(in.size());
+            std::string out; out.reserve(in.size());
             size_t pos = 0;
             while (pos < in.size()) {
                 if (in[pos] == '&') {
@@ -517,9 +492,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
                     else if (in.substr(pos, 6) == "&quot;") { out += '"'; pos += 6; }
                     else if (in.substr(pos, 6) == "&apos;") { out += '\''; pos += 6; }
                     else { out += in[pos++]; }
-                } else {
-                    out += in[pos++];
-                }
+                } else { out += in[pos++]; }
             }
             return out;
         };
@@ -528,106 +501,58 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
             std::string pattern = attr + "=\"";
             size_t start = line.find(pattern);
             if (start == std::string::npos) return "";
-            start += pattern.length();
+            start += pattern.size();
             size_t end = line.find("\"", start);
             if (end == std::string::npos) return "";
             return line.substr(start, end - start);
         };
 
-
-        std::string xmlContent;
+        std::stack<std::shared_ptr<Directory>> stk;
         std::string line;
         while (std::getline(ifs, line)) {
-            xmlContent += line + "\n";
+            line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+            line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+            if (line.find("<Directory") != std::string::npos) {
+                std::string name = unescapeXml(extractAttribute(line, "name"));
+                auto dir = std::make_shared<Directory>(name);
+                if (stk.empty()) root = dir;
+                else stk.top()->addSubdirectoryPtr(dir);
+                stk.push(dir);
+            } else if (line.find("</Directory>") != std::string::npos) {
+                if (!stk.empty()) stk.pop();
+            } else if (line.find("<File") != std::string::npos) {
+                std::string name = unescapeXml(extractAttribute(line, "name"));
+                std::string sizeStr = extractAttribute(line, "size");
+                std::string dateStr = unescapeXml(extractAttribute(line, "date"));
+                size_t size = std::stoull(sizeStr);
+                if (!stk.empty()) {
+                    stk.top()->addFile(name, size);
+                    auto fptr = stk.top()->findFile(name);
+                    if (fptr) fptr->setDate(dateStr);
+                }
+            }
         }
+
         ifs.close();
-
-        std::stack<std::shared_ptr<Directory>> dirStack;
-        size_t pos = 0;
-
-        while (pos < xmlContent.length()) {
-            size_t tagStart = xmlContent.find('<', pos);
-            if (tagStart == std::string::npos) break;
-
-            size_t tagEnd = xmlContent.find('>', tagStart);
-            if (tagEnd == std::string::npos) break;
-
-            std::string tag = xmlContent.substr(tagStart + 1, tagEnd - tagStart - 1);
-
-     
-            if (!tag.empty() && tag[0] == '?') {
-                pos = tagEnd + 1;
-                continue;
-            }
-
-        
-            if (!tag.empty() && tag[0] == '/') {
-                if (!dirStack.empty()) dirStack.pop();
-                pos = tagEnd + 1;
-                continue;
-            }
-
-         
-            if (tag.rfind("File", 0) == 0) {
-                std::string name = unescapeXml(extractAttribute(tag, "name"));
-                std::string sizeStr = extractAttribute(tag, "size");
-                std::string dateStr = extractAttribute(tag, "date");
-
-                if (!name.empty() && !sizeStr.empty() && !dirStack.empty()) {
-                    size_t fileSize = 0;
-                    try { fileSize = std::stoull(sizeStr); }
-                    catch (...) { fileSize = 0; }
-
-                    auto parentDir = dirStack.top();
-                    parentDir->addFile(name, fileSize);
-                    if (!dateStr.empty()) {
-                        auto fptr = parentDir->findFile(name);
-                        if (fptr) fptr->setDate(unescapeXml(dateStr));
-                    }
-                }
-                pos = tagEnd + 1;
-                continue;
-            }
-            if (tag.rfind("Directory", 0) == 0) {
-                std::string dirName = unescapeXml(extractAttribute(tag, "name"));
-
-                if (!dirName.empty()) {
-                    if (root == nullptr) {
-                        root = std::make_shared<Directory>(dirName);
-                        dirStack.push(root);
-                    } else if (!dirStack.empty()) {
-                        auto currentDir = dirStack.top();
-                        currentDir->addSubdirectory(dirName);
-                        auto newDir = currentDir->findSubdirectory(dirName);
-                        if (newDir) dirStack.push(newDir);
-                        else {
-                            // Evita crash
-                            pos = tagEnd + 1;
-                            continue;
-                        }
-                    } else {
-                        auto dummyParent = root;
-                        dummyParent->addSubdirectory(dirName);
-                        auto newDir = dummyParent->findSubdirectory(dirName);
-                        if (newDir) dirStack.push(newDir);
-                    }
-                }
-                pos = tagEnd + 1;
-                continue;
-            }
-
-            pos = tagEnd + 1;
-        }
-
-        return root != nullptr;
-    } catch (const std::exception& e) {
-        std::cerr << "Erro ao ler XML: " << e.what() << "\n";
-        return false;
-    } catch (...) {
-        std::cerr << "Erro desconhecido ao ler XML\n";
-        return false;
-    }
+        return true;
+    } catch (...) { return false; }
 }
+
+std::optional<std::string> SistemaFicheiros::DataFicheiro(const std::string &Fich) const {
+    if (!root) return std::nullopt;
+    std::queue<std::shared_ptr<Directory>> q;
+    q.push(root);
+
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        for (const auto &f : cur->getFiles()) {
+            if (f->getName() == Fich) return f->getDate();
+        }
+        for (const auto &sub : cur->getSubdirectories()) q.push(sub);
+    }
+    return std::nullopt;
+}
+
 
 std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Tipo) const {
     if (!root) return std::nullopt;
@@ -645,7 +570,7 @@ std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Ti
         }
         return std::nullopt;
     } else {
-       
+
         std::queue<std::pair<std::shared_ptr<Directory>, fs::path>> q;
         q.push({root, fs::path(root->getName())});
         while (!q.empty()) {
