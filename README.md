@@ -1,1 +1,1 @@
-implementei ate ao 14, pus um resumo na 12 para ter algum tipo de output
+ja está a guardar a data e os dados quando das exit
