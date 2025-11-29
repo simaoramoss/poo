@@ -22,32 +22,34 @@ void printCommands() {
     std::cout << "7. rmdir <nome> - Remover diretoria\n";
     std::cout << "8. size - Mostrar tamanho total da diretoria atual\n";
     std::cout << "9. maior - Mostrar o ficheiro que ocupa mais espaço (caminho)\n";
-    std::cout << "10. dirmais - Mostrar diretoria com mais elementos (a partir da diretoria atual)\n";
-    std::cout << "11. dirmenos - Mostrar diretoria com menos elementos (a partir da diretoria atual)\n";
+    std::cout << "10. dirmais - Mostrar diretoria com mais elementos (a partir da diretoria atual)\n";    
+    std::cout << "11. dirmenos - Mostrar diretoria com menos elementos (a partir da diretoria atual)\n";  
     std::cout << "12. maisespaco - Mostrar diretoria que ocupa mais espaço (a partir da raiz do sistema)\n";
     std::cout << "13. search <nome> <0|1> - Procurar ficheiro (0) ou directoria (1) e devolver caminho completo\n";
-    std::cout << "14. removerall <DIR|FILE> - Remover todas as diretorias ou todos os ficheiros\n";
+    std::cout << "14. removerall <DIR|FILE> - Remover todas as diretorias ou todos os ficheiros\n";       
     std::cout << "15. exportarxml <ficheiro> - Exportar o sistema em memoria para XML (default: sistema.xml)\n";
-    std::cout << "16. lerxml <ficheiro> - Ler sistema de ficheiros a partir de um ficheiro XML\n";
-    std::cout << "17. movefile <nome> <dir> - Mover ficheiro para outra diretoria\n";
-    std::cout << "18. movedir <DirOld> <DirNew> - Mover diretoria (e subárvore) para outra diretoria\n";
-    std::cout << "19. getdate <nome_ficheiro> - Mostrar data do ficheiro (YYYY|M|D)\n";
-    std::cout << "20. help - Mostrar comandos\n";
-    std::cout << "21. exit - Sair (guarda automaticamente em sistema_saved.xml)\n";
+    std::cout << "16. tree [<ficheiro>] - Listar arvore (ou gravar em ficheiro)\n";
+    std::cout << "17. finddirs <nome> - Encontrar todas as diretorias com esse nome\n";
+    std::cout << "18. findfiles <nome> - Encontrar todos os ficheiros com esse nome\n";
+    std::cout << "19. renamefiles <old> <new> - Renomear ficheiros com nome <old> para <new>\n";
+    std::cout << "20. dupfiles - Listar ficheiros duplicados (mesmo nome)\n";
+    std::cout << "21. copybatch <padrao> <DirOrigem> <DirDestino> - Copiar ficheiros cujo nome contenha <padrao> da arvore de origem para a raiz do destino\n";
+    std::cout << "help - Mostrar comandos\n";
+    std::cout << "exit - Sair (guarda automaticamente em sistema_saved.xml)\n";
 }
 
 static std::string convertAsctimeToYMD(const std::string& asctimeStr) {
-    // Asctime typical format: "Wed Jun 30 21:49:08 1993"
-    // We'll try to parse; if fails, return the original string.
+    // Formato típico produzido por asctime: "Wed Jun 30 21:49:08 1993"
+    // Vou tentar analisar esse formato; se falhar, devolvo a cadeia original.
     std::istringstream iss(asctimeStr);
     std::tm tm = {};
-    // Note: std::get_time with locale-dependent format; try this format:
+    // Nota: std::get_time depende da localidade; tento este formato:
     iss.str(asctimeStr);
     iss.clear();
     iss >> std::get_time(&tm, "%a %b %d %H:%M:%S %Y");
     if (iss.fail()) {
         // try alternative: maybe the string already in "YYYY|M|D" or other; try to detect YYYY at end
-        // fallback: return original
+        // em caso de falha, devolve a string original
         return asctimeStr;
     }
     int year = tm.tm_year + 1900;
@@ -94,6 +96,18 @@ int main() {
             std::cin >> name;
             currentDir->addSubdirectory(name);
             std::cout << "Diretoria criada: " << name << "\n";
+        }
+        else if (cmd == "load") {
+            std::string path;
+            if (!(std::cin >> path)) { std::cout << "Uso: load <path>\n"; continue; }
+            bool ok = sf.Load(path);
+            if (ok) {
+                root = sf.GetRoot();
+                currentDir = root.get();
+                std::cout << "Diretoria carregada em memoria: " << path << "\n";
+            } else {
+                std::cout << "Falha ao carregar a diretoria: " << path << "\n";
+            }
         }
         else if (cmd == "touch") {
             std::string name;
@@ -145,6 +159,42 @@ int main() {
             } else {
                 std::cout << "Ficheiro maior: " << path << " (" << size << " bytes)\n";
             }
+        }
+        else if (cmd == "directoriamaiselementos") {
+            sf.SetRoot(root);
+            auto res = sf.DirectoriaMaisElementos();
+            if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
+            else std::cout << res.value() << "\n";
+        }
+        else if (cmd == "directoriamenoselementos") {
+            sf.SetRoot(root);
+            auto res = sf.DirectoriaMenosElementos();
+            if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
+            else std::cout << res.value() << "\n";
+        }
+        else if (cmd == "ficheiromaior") {
+            sf.SetRoot(root);
+            auto res = sf.FicheiroMaior();
+            if (!res.has_value()) std::cout << "Nenhum ficheiro encontrado.\n";
+            else std::cout << res.value() << "\n";
+        }
+        else if (cmd == "directoriamaiespaco") {
+            sf.SetRoot(root);
+            auto res = sf.DirectoriaMaisEspaco();
+            if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
+            else std::cout << res.value() << "\n";
+        }
+        else if (cmd == "contarficheiros") {
+            sf.SetRoot(root);
+            std::cout << sf.ContarFicheiros() << "\n";
+        }
+        else if (cmd == "contardirectorios") {
+            sf.SetRoot(root);
+            std::cout << sf.ContarDirectorios() << "\n";
+        }
+        else if (cmd == "memoria") {
+            sf.SetRoot(root);
+            std::cout << sf.Memoria() << "\n";
         }
         else if (cmd == "dirmais") {
             Directory* bestDir = currentDir;
@@ -282,6 +332,57 @@ int main() {
             else {
                 std::cout << "Falha ao carregar o sistema a partir de: " << path << "\n";
             }
+        }
+        else if (cmd == "tree") {
+            std::string arg;
+            // optional filename
+            if (std::getline(std::cin, arg)) {
+                // trim
+                auto trim = [](std::string &s){ size_t a=0; while(a<s.size() && isspace((unsigned char)s[a])) a++; size_t b=s.size(); while(b>a && isspace((unsigned char)s[b-1])) b--; s = s.substr(a,b-a); };
+                trim(arg);
+            }
+            sf.SetRoot(root);
+            if (arg.empty()) sf.Tree(nullptr);
+            else sf.Tree(&arg);
+        }
+        else if (cmd == "finddirs") {
+            std::string name;
+            if (!(std::cin >> name)) { std::cout << "Uso: finddirs <nome>\n"; continue; }
+            sf.SetRoot(root);
+            std::list<std::string> results;
+            sf.PesquisarAllDirectorias(results, name);
+            if (results.empty()) std::cout << "Nenhuma diretoria encontrada com o nome: " << name << "\n";
+            else { std::cout << "Diretorias encontradas:\n"; for (auto &p: results) std::cout << "  " << p << "\n"; }
+        }
+        else if (cmd == "copybatch") {
+            std::string padrao, dirOrig, dirDest;
+            if (!(std::cin >> padrao >> dirOrig >> dirDest)) { std::cout << "Uso: copybatch <padrao> <DirOrigem> <DirDestino>\n"; continue; }
+            sf.SetRoot(root);
+            bool ok = sf.CopyBatch(padrao, dirOrig, dirDest);
+            if (ok) std::cout << "CopyBatch concluido (ficheiros copiados para a raiz de " << dirDest << ").\n";
+            else std::cout << "CopyBatch falhou (origem/destino nao encontrado ou nenhum ficheiro corresponde ao padrao).\n";
+        }
+        else if (cmd == "findfiles") {
+            std::string name;
+            if (!(std::cin >> name)) { std::cout << "Uso: findfiles <nome>\n"; continue; }
+            sf.SetRoot(root);
+            std::list<std::string> results;
+            sf.PesquisarAllFicheiros(results, name);
+            if (results.empty()) std::cout << "Nenhum ficheiro encontrado com o nome: " << name << "\n";
+            else { std::cout << "Ficheiros encontrados:\n"; for (auto &p: results) std::cout << "  " << p << "\n"; }
+        }
+        else if (cmd == "renamefiles") {
+            std::string oldName, newName;
+            if (!(std::cin >> oldName >> newName)) { std::cout << "Uso: renamefiles <old> <new>\n"; continue; }
+            sf.SetRoot(root);
+            sf.RenomearFicheiros(oldName, newName);
+            std::cout << "Renomeacao concluida: " << oldName << " -> " << newName << " (onde aplicavel)\n";
+        }
+        else if (cmd == "dupfiles") {
+            sf.SetRoot(root);
+            auto duplicates = sf.GetFicheirosDuplicados();
+            if (duplicates.empty()) std::cout << "Nao foram encontrados ficheiros duplicados.\n";
+            else { std::cout << "Ficheiros duplicados encontrados:\n"; for (auto &d: duplicates) std::cout << "  " << d << "\n"; }
         }
         else if (cmd == "search") {
             std::string nome;

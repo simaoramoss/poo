@@ -6,6 +6,9 @@
 #include <functional>
 #include <sstream>
 #include <iostream>
+#include <map>
+#include <cstdio>
+#include <cctype>
 #include <optional>
 #include <stack>
 #include <vector>
@@ -587,4 +590,183 @@ std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Ti
         }
         return std::nullopt;
     }
+}
+
+// ----------------------------------------
+// Tree
+void SistemaFicheiros::Tree(const std::string *fich) {
+    if (!root) return;
+    if (!fich) {
+        root->generateTree(std::cout, "");
+        return;
+    }
+    std::ofstream ofs(*fich);
+    if (!ofs.is_open()) return;
+    root->generateTree(ofs, "");
+    ofs.close();
+}
+
+// ----------------------------------------
+// Pesquisar todas as diretorias com nome <dir>
+void SistemaFicheiros::PesquisarAllDirectorias(std::list<std::string> &lres, const std::string &dir) {
+    if (!root) return;
+    root->findAllDirectories(dir, lres, "");
+}
+
+// ----------------------------------------
+// Pesquisar todos os ficheiros com nome <file>
+void SistemaFicheiros::PesquisarAllFicheiros(std::list<std::string> &lres, const std::string &file) {
+    if (!root) return;
+    root->findAllFiles(file, lres, "");
+}
+
+// ----------------------------------------
+// Implementação do CopyBatch: cópia em lote de ficheiros cujo nome contém um padrão
+static std::string toLower(const std::string &s) {
+    std::string out; out.reserve(s.size());
+    for (char c : s) out.push_back(std::tolower((unsigned char)c));
+    return out;
+}
+
+bool SistemaFicheiros::CopyBatch(const std::string &padrao, const std::string &DirOrigem, const std::string &DirDestino) {
+    if (!root) return false;
+    // localizar a diretoria de origem
+    std::shared_ptr<Directory> src = nullptr;
+    bool isPath = (DirOrigem.find('\\') != std::string::npos) || (DirOrigem.find('/') != std::string::npos);
+    if (isPath) {
+        std::shared_ptr<Directory> cur = root;
+        std::string token;
+        for (size_t i=0;i<DirOrigem.size();++i) {
+            char c = DirOrigem[i];
+            if (c=='\\' || c=='/') { if (!token.empty()) { auto next = cur->findSubdirectory(token); if (!next) { cur = nullptr; break; } cur = next; token.clear(); } }
+            else token.push_back(c);
+        }
+        if (!token.empty() && cur) { auto next = cur->findSubdirectory(token); if (next) cur = next; else cur = nullptr; }
+        src = cur;
+    } else {
+        std::queue<std::shared_ptr<Directory>> q; q.push(root);
+        while (!q.empty() && !src) {
+            auto cur = q.front(); q.pop();
+            if (cur->getName() == DirOrigem) { src = cur; break; }
+            for (const auto &s : cur->getSubdirectories()) q.push(s);
+        }
+    }
+    if (!src) return false;
+
+    // localizar a diretoria de destino
+    std::shared_ptr<Directory> dst = nullptr;
+    isPath = (DirDestino.find('\\') != std::string::npos) || (DirDestino.find('/') != std::string::npos);
+    if (isPath) {
+        std::shared_ptr<Directory> cur = root;
+        std::string token;
+        for (size_t i=0;i<DirDestino.size();++i) {
+            char c = DirDestino[i];
+            if (c=='\\' || c=='/') { if (!token.empty()) { auto next = cur->findSubdirectory(token); if (!next) { cur = nullptr; break; } cur = next; token.clear(); } }
+            else token.push_back(c);
+        }
+        if (!token.empty() && cur) { auto next = cur->findSubdirectory(token); if (next) cur = next; else cur = nullptr; }
+        dst = cur;
+    } else {
+        std::queue<std::shared_ptr<Directory>> q; q.push(root);
+        while (!q.empty() && !dst) {
+            auto cur = q.front(); q.pop();
+            if (cur->getName() == DirDestino) { dst = cur; break; }
+            for (const auto &s : cur->getSubdirectories()) q.push(s);
+        }
+    }
+    if (!dst) return false;
+
+    // recolher todos os ficheiros da sub-árvore de origem
+    std::list<std::shared_ptr<File>> files;
+    std::function<void(std::shared_ptr<Directory>)> collect = [&](std::shared_ptr<Directory> d){
+        if (!d) return;
+        for (const auto &f : d->getFiles()) files.push_back(f);
+        for (const auto &s : d->getSubdirectories()) collect(s);
+    };
+    collect(src);
+
+    std::string patternLow = toLower(padrao);
+    int copied = 0;
+    for (const auto &f : files) {
+        std::string name = f->getName();
+        if (toLower(name).find(patternLow) == std::string::npos) continue;
+
+        // garantir nome único no destino (adiciona sufixo _NNN quando necessário)
+        std::string base = name;
+        std::string ext;
+        size_t pos = name.find_last_of('.');
+        if (pos != std::string::npos) { base = name.substr(0,pos); ext = name.substr(pos); }
+
+        std::string destName = name;
+        int seq = 1;
+        while (dst->containsFile(destName)) {
+            char buf[64]; sprintf(buf, "_%03d", seq);
+            destName = base + buf + ext;
+            seq++;
+        }
+
+        dst->addFile(destName, f->getSize());
+        auto added = dst->findFile(destName);
+        if (added) added->setDate(f->getDate());
+        copied++;
+    }
+
+    return copied > 0;
+}
+
+// ----------------------------------------
+// Renomear ficheiros
+void SistemaFicheiros::RenomearFicheiros(const std::string &fich_old, const std::string &fich_new) {
+    if (!root) return;
+    std::queue<std::shared_ptr<Directory>> q; q.push(root);
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        auto files = cur->getFiles();
+        for (const auto &f : files) {
+            if (f->getName() == fich_old) f->setName(fich_new);
+        }
+        for (const auto &s : cur->getSubdirectories()) q.push(s);
+    }
+}
+
+// ----------------------------------------
+// Duplicados
+bool SistemaFicheiros::FicheiroDuplicados() const {
+    if (!root) return false;
+    std::map<std::string,int> count;
+    std::queue<std::shared_ptr<Directory>> q; q.push(root);
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        for (const auto &f : cur->getFiles()) count[f->getName()]++;
+        for (const auto &s : cur->getSubdirectories()) q.push(s);
+    }
+    for (const auto &p : count) if (p.second > 1) return true;
+    return false;
+}
+
+std::vector<std::string> SistemaFicheiros::GetFicheirosDuplicados() const {
+    std::vector<std::string> out;
+    if (!root) return out;
+    std::map<std::string, std::vector<std::string>> mapPaths;
+    std::queue<std::shared_ptr<Directory>> q; q.push(root);
+    while (!q.empty()) {
+        auto cur = q.front(); q.pop();
+        std::string dirPath = getAbsolutePath(cur.get());
+        for (const auto &f : cur->getFiles()) {
+            mapPaths[f->getName()].push_back(dirPath + "\\" + f->getName());
+        }
+        for (const auto &s : cur->getSubdirectories()) q.push(s);
+    }
+    for (const auto &p : mapPaths) {
+        if (p.second.size() > 1) {
+            std::ostringstream oss;
+            oss << p.first << ": ";
+            for (size_t i=0;i<p.second.size();++i) {
+                if (i) oss << ", ";
+                oss << p.second[i];
+            }
+            out.push_back(oss.str());
+        }
+    }
+    return out;
 }
