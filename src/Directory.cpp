@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <sstream>
 
+// Construtor simples: guarda o nome e quem é o pai (se houver).
 Directory::Directory(const std::string& name, Directory* parent)
     : name(name), parent(parent) {}
 
@@ -28,6 +29,7 @@ Directory* Directory::getParent() const {
 }
 
 void Directory::addSubdirectory(const std::string& name) {
+    // Cria a subdiretoria e define este nó como pai.
     auto newDir = std::make_shared<Directory>(name, this);
     subdirectories.push_back(newDir);
 }
@@ -38,6 +40,7 @@ void Directory::addSubdirectoryPtr(std::shared_ptr<Directory> dir) {
     subdirectories.push_back(dir);
 }
 
+// Retira a subdiretoria dos filhos e devolve o ponteiro para poder anexar noutro sítio.
 std::shared_ptr<Directory> Directory::takeSubdirectory(const std::string& name) {
     auto it = std::find_if(subdirectories.begin(), subdirectories.end(),
         [&name](const auto& dir) { return dir->getName() == name; });
@@ -48,6 +51,7 @@ std::shared_ptr<Directory> Directory::takeSubdirectory(const std::string& name) 
 }
 
 void Directory::addFile(const std::string& name, size_t size) {
+    // Cria um ficheiro com o tamanho indicado e adiciona-o.
     auto newFile = std::make_shared<File>(name, size);
     files.push_back(newFile);
 }
@@ -58,6 +62,7 @@ void Directory::addFilePtr(std::shared_ptr<File> fptr) {
 }
 
 void Directory::removeSubdirectory(const std::string& name) {
+    // Remove o primeiro filho com o nome correspondente.
     auto it = std::find_if(subdirectories.begin(), subdirectories.end(),
         [&name](const auto& dir) { return dir->getName() == name; });
 
@@ -67,6 +72,7 @@ void Directory::removeSubdirectory(const std::string& name) {
 }
 
 void Directory::removeFile(const std::string& name) {
+    // Remove o primeiro ficheiro com o nome correspondente.
     auto it = std::find_if(files.begin(), files.end(),
         [&name](const auto& file) { return file->getName() == name; });
     if (it != files.end()) {
@@ -91,6 +97,7 @@ std::shared_ptr<File> Directory::findFile(const std::string& name) const {
 }
 
 void Directory::listContents() const {
+    // Impressão amigável do conteúdo direto.
     std::cout << "Diretoria: " << name << "\n";
 
     std::cout << "Subdiretorias:\n";
@@ -130,6 +137,7 @@ int Directory::getElementCount() const {
 }
 
 std::shared_ptr<File> Directory::findLargestFile() const {
+    // Procura recursivamente o maior ficheiro.
     std::shared_ptr<File> best = nullptr;
     size_t bestSize = 0;
     for (const auto& f : files) {
@@ -149,6 +157,7 @@ std::shared_ptr<File> Directory::findLargestFile() const {
 }
 
 std::pair<std::string, size_t> Directory::findLargestFileWithPath(const std::string& currentPath) const {
+    // Igual ao anterior mas devolve também o caminho construído.
     std::string bestPath;
     size_t bestSize = 0;
     bool found = false;
@@ -177,6 +186,7 @@ std::pair<std::string, size_t> Directory::findLargestFileWithPath(const std::str
 }
 
 void Directory::findAllDirectories(const std::string& name, std::list<std::string>& paths, const std::string& currentPath) {
+    // Se o nome corresponder, adiciona o caminho; depois continua pela subárvore.
     std::string newPath = currentPath.empty() ? this->name : currentPath + "\\" + this->name;
     if (this->name == name) {
         paths.push_back(newPath);
@@ -187,6 +197,7 @@ void Directory::findAllDirectories(const std::string& name, std::list<std::strin
 }
 
 void Directory::findAllFiles(const std::string& name, std::list<std::string>& paths, const std::string& currentPath) {
+    // Adiciona todos os caminhos dos ficheiros com o nome pedido nesta subárvore.
     std::string base = currentPath.empty() ? this->name : currentPath + "\\" + this->name;
     for (const auto& f : files) {
         if (f->getName() == name) {
@@ -205,6 +216,7 @@ bool Directory::containsFile(const std::string& name) const {
 }
 
 void Directory::generateTree(std::ostream& out, const std::string& prefix) const {
+    // Desenha uma árvore textual com dois espaços por nível.
     out << prefix << getName() << "/\n";
     std::string childPrefix = prefix + "  ";
     for (const auto& f : files) {

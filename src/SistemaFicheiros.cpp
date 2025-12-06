@@ -17,12 +17,14 @@
 namespace fs = std::filesystem;
 
 SistemaFicheiros::SistemaFicheiros() : root(nullptr) {}
+// Libertamos referências à raiz para permitir nova carga ou encerramento limpo.
 SistemaFicheiros::~SistemaFicheiros() { clearSystem(); }
 
 void SistemaFicheiros::clearSystem() {
     root = nullptr;
 }
 
+// Constrói a árvore em memória a partir de uma pasta real do disco.
 bool SistemaFicheiros::Load(const std::string& pathStr) {
     try {
         fs::path basePath(pathStr);
@@ -31,6 +33,7 @@ bool SistemaFicheiros::Load(const std::string& pathStr) {
         clearSystem();
         root = std::make_shared<Directory>(basePath.filename().string());
 
+        // Alguns diretórios/ficheiros são ignorados para reduzir ruído.
         static const std::vector<std::string> ignoreDirs = { ".git", ".vscode", "bin", "obj", "build" };
         static const std::vector<std::string> ignoreFiles = { ".gitignore", ".DS_Store" };
 
@@ -127,6 +130,7 @@ int SistemaFicheiros::Memoria() const {
     return root ? static_cast<int>(root->getTotalSize()) : 0;
 }
 
+// Percorre em largura e escolhe a diretoria com mais elementos (dirs+ficheiros).
 std::optional<std::string> SistemaFicheiros::DirectoriaMaisElementos() const {
     if (!root) return std::nullopt;
 
@@ -149,6 +153,7 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisElementos() const {
     return getAbsolutePath(maxDir.get());
 }
 
+// Percorre em largura e escolhe a diretoria com menos elementos.
 std::optional<std::string> SistemaFicheiros::DirectoriaMenosElementos() const {
     if (!root) return std::nullopt;
 
@@ -171,6 +176,7 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMenosElementos() const {
     return getAbsolutePath(minDir.get());
 }
 
+// Encontra a diretoria que acumula mais espaço total (tamanho recursivo).
 std::optional<std::string> SistemaFicheiros::DirectoriaMaisEspaco() const {
     if (!root) return std::nullopt;
 
@@ -193,6 +199,7 @@ std::optional<std::string> SistemaFicheiros::DirectoriaMaisEspaco() const {
     return getAbsolutePath(bestDir.get()) + " (" + std::to_string(bestSize) + " bytes)";
 }
 
+// Constrói o caminho absoluto (da raiz até ao nó) a partir dos ponteiros parent.
 std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     if (!dir) return std::string();
     std::vector<std::string> parts;
@@ -206,6 +213,7 @@ std::string SistemaFicheiros::getAbsolutePath(Directory* dir) const {
     return p.string();
 }
 
+// Procura o ficheiro maior em toda a árvore e devolve caminho + tamanho.
 std::optional<std::string> SistemaFicheiros::FicheiroMaior() const {
     if (!root) return std::nullopt;
 
@@ -247,7 +255,7 @@ std::shared_ptr<Directory> SistemaFicheiros::GetRoot() const {
 }
 
 // ----------------------------------------
-// Métodos auxiliares para listar diretórios e ficheiros
+// Métodos auxiliares para listar todos os diretórios/ficheiros de forma recursiva.
 void SistemaFicheiros::getAllDirectories(std::shared_ptr<Directory> dir,
                                          std::list<std::shared_ptr<Directory>>& dirs) const {
     if (!dir) return;
@@ -298,7 +306,6 @@ bool SistemaFicheiros::RemoverAll(const std::string &s, const std::string &tipo)
     return removed;
 }
 
-// ----------------------------------------
 // Mover ficheiro
 bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &DirNova) {
     if (!root) return false;
@@ -368,8 +375,8 @@ bool SistemaFicheiros::MoveFicheiro(const std::string &Fich, const std::string &
     return true;
 }
 
-// ----------------------------------------
-// Mover diretório
+
+// Mover uma diretoria (e a sua subárvore) para outra diretoria.
 bool SistemaFicheiros::MoverDirectoria(const std::string &DirOld, const std::string &DirNew) {
     if (!root) return false;
 
@@ -500,6 +507,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
             return out;
         };
 
+        // Extrai o valor de um atributo na linha XML 
         auto extractAttribute = [](const std::string &line, const std::string &attr) -> std::string {
             std::string pattern = attr + "=\"";
             size_t start = line.find(pattern);
@@ -541,6 +549,7 @@ bool SistemaFicheiros::Ler_XML(const std::string &s) {
     } catch (...) { return false; }
 }
 
+// Obtém a data guardada para um ficheiro pelo seu nome.
 std::optional<std::string> SistemaFicheiros::DataFicheiro(const std::string &Fich) const {
     if (!root) return std::nullopt;
     std::queue<std::shared_ptr<Directory>> q;
@@ -557,6 +566,7 @@ std::optional<std::string> SistemaFicheiros::DataFicheiro(const std::string &Fic
 }
 
 
+// Pesquisa por diretoria (Tipo=1) ou ficheiro (Tipo=0) e devolve caminho.
 std::optional<std::string> SistemaFicheiros::Search(const std::string &s, int Tipo) const {
     if (!root) return std::nullopt;
 

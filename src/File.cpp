@@ -4,6 +4,7 @@
 #include <sstream>
 #include <iomanip>
 
+// Ao criar um ficheiro, registamos também a data (YYYY|MM|DD) do momento.
 File::File(const std::string& name, size_t size) 
     : name(name), size(size) {
     time_t now = time(0);
@@ -33,5 +34,6 @@ void File::setName(const std::string& newName) {
 }
 
 void File::setDate(const std::string& newDate) {
+    // Útil quando importamos de XML ou ficamos com a data do disco.
     date = newDate;
 }

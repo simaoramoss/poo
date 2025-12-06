@@ -39,17 +39,13 @@ void printCommands() {
 }
 
 static std::string convertAsctimeToYMD(const std::string& asctimeStr) {
-    // Formato típico produzido por asctime: "Wed Jun 30 21:49:08 1993"
-    // Vou tentar analisar esse formato; se falhar, devolvo a cadeia original.
+    // Formato típico: "Wed Jun 30 21:49:08 1993"
     std::istringstream iss(asctimeStr);
     std::tm tm = {};
-    // Nota: std::get_time depende da localidade; tento este formato:
     iss.str(asctimeStr);
     iss.clear();
     iss >> std::get_time(&tm, "%a %b %d %H:%M:%S %Y");
     if (iss.fail()) {
-        // try alternative: maybe the string already in "YYYY|M|D" or other; try to detect YYYY at end
-        // em caso de falha, devolve a string original
         return asctimeStr;
     }
     int year = tm.tm_year + 1900;
@@ -59,14 +55,14 @@ static std::string convertAsctimeToYMD(const std::string& asctimeStr) {
 }
 
 int main() {
-    // inicializa árvore vazia com raiz "/"
+    // Arranque: criamos uma árvore vazia com raiz "/".
     auto root = std::make_shared<Directory>("/");
     Directory* currentDir = root.get();
 
-    // sistema de ficheiros wrapper (liga root)
+    // Criamos o serviço que gere as operações sobre a árvore.
     SistemaFicheiros sf;
     sf.SetRoot(root);
-    // tentar carregar sistema guardado anteriormente (persistencia)
+    // Recupera o estado anterior, se existir, para continuar onde ficámos.
     if (sf.Ler_XML("sistema_saved.xml")) {
         root = sf.GetRoot();
         currentDir = root.get();
@@ -82,7 +78,7 @@ int main() {
         if (!(std::cin >> cmd)) break;
 
         if (cmd == "exit") {
-            // auto-save para permitir persistencia entre execucoes
+            // Antes de sair, guardamos o estado para poder retomar depois.
             sf.SetRoot(root);
             sf.Escrever_XML("sistema_saved.xml");
             std::cout << "Sistema guardado em sistema_saved.xml. A sair...\n";
@@ -92,12 +88,14 @@ int main() {
             printCommands();
         }
         else if (cmd == "mkdir") {
+            // Cria uma subdiretoria diretamente na diretoria atual.
             std::string name;
             std::cin >> name;
             currentDir->addSubdirectory(name);
             std::cout << "Diretoria criada: " << name << "\n";
         }
         else if (cmd == "load") {
+            // Varre uma pasta real do disco e constrói a árvore em memória.
             std::string path;
             if (!(std::cin >> path)) { std::cout << "Uso: load <path>\n"; continue; }
             bool ok = sf.Load(path);
@@ -110,6 +108,7 @@ int main() {
             }
         }
         else if (cmd == "touch") {
+            // Cria um ficheiro simples na diretoria atual com o tamanho indicado.
             std::string name;
             size_t size;
             std::cin >> name >> size;
@@ -117,6 +116,7 @@ int main() {
             std::cout << "Ficheiro criado: " << name << "\n";
         }
         else if (cmd == "cd") {
+            // Navegação: entra numa subdiretoria ou volta para o pai com `..`.
             std::string name;
             std::cin >> name;
             if (name == "..") {
@@ -135,24 +135,29 @@ int main() {
             }
         }
         else if (cmd == "ls") {
+            // Mostra subdiretorias e ficheiros da diretoria atual.
             currentDir->listContents();
         }
         else if (cmd == "rm") {
+            // Remove um ficheiro pelo nome na diretoria atual.
             std::string name;
             std::cin >> name;
             currentDir->removeFile(name);
             std::cout << "Ficheiro removido: " << name << "\n";
         }
         else if (cmd == "rmdir") {
+            // Remove uma subdiretoria.
             std::string name;
             std::cin >> name;
             currentDir->removeSubdirectory(name);
             std::cout << "Diretoria removida: " << name << "\n";
         }
         else if (cmd == "size") {
+            // Soma recursivamente o tamanho de todos os ficheiros sob a diretoria atual.
             std::cout << "Tamanho total: " << currentDir->getTotalSize() << " bytes\n";
         }
         else if (cmd == "maior") {
+            // Procura o ficheiro maior e imprime o caminho completo.
             auto [path, size] = currentDir->findLargestFileWithPath("");
             if (path.empty()) {
                 std::cout << "Nenhum ficheiro encontrado nesta diretoria ou subdiretorias.\n";
@@ -161,42 +166,50 @@ int main() {
             }
         }
         else if (cmd == "directoriamaiselementos") {
+            // Calcula a diretoria (em toda a árvore) com mais elementos (dirs+ficheiros).
             sf.SetRoot(root);
             auto res = sf.DirectoriaMaisElementos();
             if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
             else std::cout << res.value() << "\n";
         }
         else if (cmd == "directoriamenoselementos") {
+            // Calcula a diretoria (em toda a árvore) com menos elementos.
             sf.SetRoot(root);
             auto res = sf.DirectoriaMenosElementos();
             if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
             else std::cout << res.value() << "\n";
         }
         else if (cmd == "ficheiromaior") {
+            // Versão via `SistemaFicheiros` que devolve também o tamanho formatado.
             sf.SetRoot(root);
             auto res = sf.FicheiroMaior();
             if (!res.has_value()) std::cout << "Nenhum ficheiro encontrado.\n";
             else std::cout << res.value() << "\n";
         }
         else if (cmd == "directoriamaiespaco") {
+            // Diretoria que ocupa mais espaço (soma recursiva dos ficheiros).
             sf.SetRoot(root);
             auto res = sf.DirectoriaMaisEspaco();
             if (!res.has_value()) std::cout << "Nenhuma diretoria encontrada.\n";
             else std::cout << res.value() << "\n";
         }
         else if (cmd == "contarficheiros") {
+            // Quantos ficheiros existem no sistema, no total.
             sf.SetRoot(root);
             std::cout << sf.ContarFicheiros() << "\n";
         }
         else if (cmd == "contardirectorios") {
+            // Quantas diretorias existem (conta inclui a raiz).
             sf.SetRoot(root);
             std::cout << sf.ContarDirectorios() << "\n";
         }
         else if (cmd == "memoria") {
+            // Memória total ocupada (soma dos tamanhos dos ficheiros).
             sf.SetRoot(root);
             std::cout << sf.Memoria() << "\n";
         }
         else if (cmd == "dirmais") {
+            // Versão local (partindo da diretoria atual) para diretoria com mais elementos.
             Directory* bestDir = currentDir;
             int bestCount = currentDir->getElementCount();
             std::queue<std::pair<Directory*, std::string>> q;
@@ -218,6 +231,7 @@ int main() {
                       << bestDir->getName() << " (" << bestCount << " elementos)\n";
         }
         else if (cmd == "dirmenos") {
+            // Versão local (partindo da diretoria atual) para diretoria com menos elementos.
             Directory* minDir = currentDir;
             int minCount = currentDir->getElementCount();
             std::queue<std::pair<Directory*, std::string>> q;
@@ -239,6 +253,7 @@ int main() {
                       << minDir->getName() << " (" << minCount << " elementos)\n";
         }
         else if (cmd == "maisespaco") {
+            // Entre as subdiretorias diretas da atual, qual ocupa mais espaço.
             const auto& subs = currentDir->getSubdirectories();
             if (subs.empty()) {
                 std::cout << "Nao existem subdiretorias na diretoria atual.\n";
@@ -259,6 +274,7 @@ int main() {
             }
         }
         else if (cmd == "removerall") {
+            // Remove todos os ficheiros ou todas as diretorias com o nome indicado, na árvore toda.
             std::string tipo;
             if (!(std::cin >> tipo)) {
                 std::cout << "Uso: removerall <DIR|FILE>\n";
@@ -306,6 +322,7 @@ int main() {
             else std::cout << "Nenhuma ocorrencia encontrada para remover.\n";
         }
         else if (cmd == "exportarxml") {
+            // Exporta a árvore para um XML simples (útil para persistência/consulta).
             std::string path;
             if (!(std::cin >> path)) {
                 path = "sistema.xml";
@@ -315,6 +332,7 @@ int main() {
             std::cout << "Sistema exportado para: " << path << "\n";
         }
         else if (cmd == "lerxml") {
+            // Lê a árvore a partir de um XML gerado previamente.
             std::string path;
             if (!(std::cin >> path)) {
                 std::cout << "Uso: lerxml <ficheiro>\n";
@@ -334,6 +352,7 @@ int main() {
             }
         }
         else if (cmd == "tree") {
+            // Desenha a árvore em texto; se indicar ficheiro, grava em vez de imprimir.
             std::string arg;
             // optional filename
             if (std::getline(std::cin, arg)) {
@@ -346,6 +365,7 @@ int main() {
             else sf.Tree(&arg);
         }
         else if (cmd == "finddirs") {
+            // Procura diretorias com o nome dado e lista os caminhos.
             std::string name;
             if (!(std::cin >> name)) { std::cout << "Uso: finddirs <nome>\n"; continue; }
             sf.SetRoot(root);
@@ -355,6 +375,7 @@ int main() {
             else { std::cout << "Diretorias encontradas:\n"; for (auto &p: results) std::cout << "  " << p << "\n"; }
         }
         else if (cmd == "copybatch") {
+            // Copia para a raiz do destino os ficheiros cujo nome contém o padrão.
             std::string padrao, dirOrig, dirDest;
             if (!(std::cin >> padrao >> dirOrig >> dirDest)) { std::cout << "Uso: copybatch <padrao> <DirOrigem> <DirDestino>\n"; continue; }
             sf.SetRoot(root);
@@ -363,6 +384,7 @@ int main() {
             else std::cout << "CopyBatch falhou (origem/destino nao encontrado ou nenhum ficheiro corresponde ao padrao).\n";
         }
         else if (cmd == "findfiles") {
+            // Procura ficheiros com o nome dado e lista os caminhos.
             std::string name;
             if (!(std::cin >> name)) { std::cout << "Uso: findfiles <nome>\n"; continue; }
             sf.SetRoot(root);
@@ -372,6 +394,7 @@ int main() {
             else { std::cout << "Ficheiros encontrados:\n"; for (auto &p: results) std::cout << "  " << p << "\n"; }
         }
         else if (cmd == "renamefiles") {
+            // Renomeia todos os ficheiros com o nome antigo para o novo.
             std::string oldName, newName;
             if (!(std::cin >> oldName >> newName)) { std::cout << "Uso: renamefiles <old> <new>\n"; continue; }
             sf.SetRoot(root);
@@ -379,12 +402,14 @@ int main() {
             std::cout << "Renomeacao concluida: " << oldName << " -> " << newName << " (onde aplicavel)\n";
         }
         else if (cmd == "dupfiles") {
+            // Sinaliza ficheiros duplicados (mesmo nome) e lista onde estão.
             sf.SetRoot(root);
             auto duplicates = sf.GetFicheirosDuplicados();
             if (duplicates.empty()) std::cout << "Nao foram encontrados ficheiros duplicados.\n";
             else { std::cout << "Ficheiros duplicados encontrados:\n"; for (auto &d: duplicates) std::cout << "  " << d << "\n"; }
         }
         else if (cmd == "search") {
+            // Pesquisa global por diretoria (1) ou ficheiro (0) e devolve o caminho completo.
             std::string nome;
             int tipo;
             if (!(std::cin >> nome >> tipo)) {
